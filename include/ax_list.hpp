@@ -125,6 +125,8 @@ namespace ax
 			inline TListIter(): pLink( NULL ) {}
 			inline TListIter( TLink &x ) : pLink( &x ) {}
 			inline TListIter( TLink *x ) : pLink( x ) {}
+			inline TListIter( const TLink &x ) : pLink( const_cast< TLink * >( &x ) ) {}
+			inline TListIter( const TLink *x ) : pLink( const_cast< TLink * >( x ) ) {}
 			inline TListIter( const TListIter &iter ) : pLink( iter.pLink ) {}
 			inline ~TListIter() {}
 
@@ -389,9 +391,9 @@ namespace ax
 		typedef typename Policies::SizeType      SizeType;
 		typedef typename Policies::AllocSizeType AllocSizeType;
 
-		typedef typename TIntrList< Type >::FnComparator         FnComparator;
-		typedef detail::TListIter< TIntrLink< Type > >           Iterator;
-		typedef detail::TListIter< TIntrLink< const TElement > > ConstIterator;
+		typedef typename TIntrList< Type >::FnComparator FnComparator;
+		typedef detail::TListIter< TIntrLink< Type > >   Iterator;
+		typedef detail::TListIter< TIntrLink< Type > >   ConstIterator;
 
 		TList();
 		TList( const TList &ls );
@@ -473,6 +475,7 @@ namespace ax
 		inline Iterator find( const Type &item ) { return find_const( item ); }
 
 		Iterator remove( Iterator iter );
+		inline Iterator removeLast() { return remove( last() ); }
 
 		void sort( FnComparator pfnCompare );
 		void sort();
@@ -591,9 +594,9 @@ namespace ax
 		typedef typename Policies::SizeType      SizeType;
 		typedef typename Policies::AllocSizeType AllocSizeType;
 
-		typedef typename TIntrList< Type >::FnComparator         FnComparator;
-		typedef detail::TListIter< TIntrLink< Type > >           Iterator;
-		typedef detail::TListIter< TIntrLink< const TElement > > ConstIterator;
+		typedef typename TIntrList< Type >::FnComparator   FnComparator;
+		typedef detail::TListIter< TIntrLink< Type > >     Iterator;
+		typedef detail::TListIter< TIntrLink< TElement > > ConstIterator;
 
 		TSmallList(): ListBase() {}
 		TSmallList( const TSmallList &ls ): ListBase( ls ) {}
