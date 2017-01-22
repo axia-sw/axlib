@@ -1147,8 +1147,10 @@
 #ifndef AX_VECTORCALL
 # if AX_HAS_VECTOR_CALL
 #  define AX_VECTORCALL             __vectorcall
-# else
+# elif AX_ARCH_X86 && AX_OS_WINDOWS
 #  define AX_VECTORCALL             __fastcall
+# else
+#  define AX_VECTORCALL             /*blank*/
 # endif
 #endif
 /// @def AX_VCALL
