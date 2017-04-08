@@ -56,6 +56,12 @@
 
 */
 
+/*
+
+    FIXME 170408: Semaphores should be reimplemented using POSIX conditional variables on supported platforms. (Especially macOS.)
+
+*/
+
 #ifndef INCGUARD_AX_THREAD_H_
 #define INCGUARD_AX_THREAD_H_
 
@@ -338,6 +344,18 @@ Threading Model
 #  define AXTHREAD_MODEL_PTHREAD    1
 # endif
 # define AXTHREAD_MODEL_DEFINED     1
+#endif
+
+#ifndef AXTHREAD_MACH_SEMTIMED_HACK
+# if AXTHREAD_OS_MACOSX
+#  define AXTHREAD_MACH_SEMTIMED_HACK 1
+# else
+#  define AXTHREAD_MACH_SEMTIMED_HACK 0
+# endif
+#endif
+
+#if AXTHREAD_MACH_SEMTIMED_HACK
+# include <mach/mach_time.h>
 #endif
 
 
@@ -3663,15 +3681,43 @@ AXTHREAD_FUNC int AXTHREAD_CALL axth_sem_timed_wait( axth_sem_t *p, axth_u32_t m
 # if AXTHREAD_MODEL_WINDOWS
 	return ( int )( WaitForSingleObject( *p, milliseconds ) == WAIT_OBJECT_0 );
 # elif AXTHREAD_MODEL_PTHREAD
+#  if AXTHREAD_MACH_SEMTIMED_HACK
+    mach_timebase_info_data_t timebase;
+    axth_u64_t initTime, currTime, deltaTime;
+    axth_u32_t elapsedMilliseconds;
+    
+    if( !milliseconds ) {
+        return ( int )( sem_trywait( p ) == 0 );
+    }
+
+    mach_timebase_info( &timebase );
+    elapsedMilliseconds = 0;
+
+    initTime = mach_absolute_time();
+
+    do {
+        if( sem_trywait( p ) == 0 ) {
+            return 1;
+        }
+
+        currTime = mach_absolute_time();
+        deltaTime = currTime - initTime;
+
+        elapsedMilliseconds = ( axth_u32_t )( deltaTime*timebase.numer*1000/timebase.denom );
+    } while( elapsedMilliseconds < milliseconds );
+
+    return 0;
+#  else
 	if( !milliseconds ) {
 		return ( int )( sem_trywait( p ) == 0 );
 	}
-	
-	struct timespec ts;
+
+    struct timespec ts;
 	ts.tv_sec = milliseconds/1000;
 	ts.tv_nsec = (milliseconds%1000)*1000;
 
 	return ( int )( sem_timedwait( p, &ts ) == 0 );
+#  endif
 # else
 #  error Could not determine how to implement axth_sem_timed_wait()
 # endif

@@ -280,6 +280,19 @@ typedef ax_u32_t                    ax_uint_t;
 # endif
 #endif
 
+#ifndef AX_NO_STDDEF_H
+# if defined(__cplusplus) && AX_TYPES_CXX_ENABLED!=0
+#  include <cstddef>
+# else
+#  include <stddef.h>
+# endif
+typedef size_t ax_size_t;
+typedef ptrdiff_t ax_ptrdiff_t;
+#else
+typedef ax_uptr_t ax_size_t;
+typedef ax_sptr_t ax_ptrdiff_t;
+#endif
+
 #ifdef ax_static_assert
 ax_static_assert( sizeof( ax_u8_t ) == 1, "ax: Size mismatch" );
 ax_static_assert( sizeof( ax_u16_t ) == 2, "ax: Size mismatch" );
@@ -342,6 +355,9 @@ namespace ax
 	typedef ax_uptr_t               UPtr, UIntPtr;
 	typedef ax_sint_t               SCPU, IntCPU;
 	typedef ax_uint_t               UCPU, UIntCPU;
+
+    typedef ax_size_t               SizeType;
+    typedef ax_ptrdiff_t            PtrDiffType;
 
 #if AX_TYPES_CXX_NULLPTR_ENABLED
 	typedef decltype(nullptr)       NullPtr;

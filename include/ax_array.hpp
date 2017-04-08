@@ -63,11 +63,11 @@
  */
 
 #ifdef AX_TYPES_DEFINED
-typedef ax_uptr_t axarr_size_t;
-typedef ax_sptr_t axarr_ptrdiff_t;
+typedef ax_size_t    axarr_size_t;
+typedef ax_ptrdiff_t axarr_ptrdiff_t;
 #else
 # include <stddef.h>
-typedef size_t axarr_size_t;
+typedef size_t    axarr_size_t;
 typedef ptrdiff_t axarr_ptrdiff_t;
 #endif
 

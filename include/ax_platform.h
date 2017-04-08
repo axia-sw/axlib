@@ -923,11 +923,20 @@
 #  endif
 # endif
 #elif defined( __APPLE__ )
-# if defined( IPHONE_SIMULATOR ) || defined( IPHONE ) || defined( IOS )
+# if defined(__has_include) && !defined(AX_APPLE_NO_TARGETCONDITIONALS_H)
+#  if __has_include("TargetConditionals.h")
+#   include "TargetConditionals.h"
+#  endif
+# endif
+# if defined(TARGET_OS_OSX) || defined(TARGET_OS_MAC) || !defined(TARGET_OS_IPHONE)
+#  ifndef AX_OS_MACOSX
+#   define AX_OS_MACOSX             1
+#  endif
+# elif defined(TARGET_IPHONE_SIMULATOR) || defined(TARGET_OS_IPHONE)
 #  ifndef AX_OS_IOS
 #   define AX_OS_IOS                1
 #  endif
-# else
+# else /* Handle edge cases */
 #  ifndef AX_OS_MACOSX
 #   define AX_OS_MACOSX             1
 #  endif

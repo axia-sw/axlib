@@ -123,7 +123,7 @@ typedef size_t                      axfi_size_t;
 # ifdef INCGUARD_AX_PLATFORM_H_
 #  define AXFIBER_OS_WINDOWS        AX_OS_WINDOWS
 #  define AXFIBER_OS_LINUX          AX_OS_LINUX
-#  define AXFIBER_OS_MACOSX         AX_OS_MACOSX
+#  define AXFIBER_OS_MACOSX         AX_OS_MACOSX || AX_OS_IOS
 # else
 #  define AXFIBER_OS_WINDOWS        0
 #  define AXFIBER_OS_LINUX          0
@@ -151,7 +151,7 @@ typedef size_t                      axfi_size_t;
 # if AXFIBER_OS_WINDOWS
 #  undef AXFIBER_IMPL_WINDOWS
 #  define AXFIBER_IMPL_WINDOWS      1
-# elif AXFIBER_OS_LINUX || AXIFIBER_OS_MACOSX
+# elif AXFIBER_OS_LINUX || AXFIBER_OS_MACOSX
 #  undef AXFIBER_IMPL_UNIX
 #  define AXFIBER_IMPL_UNIX         1
 # endif
@@ -174,6 +174,9 @@ typedef size_t                      axfi_size_t;
 # undef Yield
 # undef AddJob
 #elif AXFIBER_IMPL_UNIX
+# if defined(__APPLE__) && !defined(_XOPEN_SOURCE)
+#  define _XOPEN_SOURCE 1
+# endif
 # include <signal.h>
 # include <ucontext.h>
 # include <stdlib.h>

@@ -202,8 +202,8 @@ typedef ax_u32_t                    axmm_u32_t;
 typedef ax_s32_t                    axmm_s32_t;
 typedef ax_u16_t                    axmm_u16_t;
 typedef ax_s16_t                    axmm_s16_t;
-typedef ax_sptr_t                   axmm_ptrdiff_t;
-typedef ax_uptr_t                   axmm_size_t;
+typedef ax_ptrdiff_t                axmm_ptrdiff_t;
+typedef ax_size_t                   axmm_size_t;
 # elif defined( _MSC_VER )
 #  include <stddef.h>
 typedef unsigned __int64            axmm_u64_t;
