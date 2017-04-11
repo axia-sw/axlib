@@ -2,7 +2,7 @@
 
 
 	ax_thread - public domain
-	Last update: 2015-10-01 Aaron Miller
+	Last update: 2017-04-09 NotKyon
 
 
 	This library provides atomic operations, threading synchronization and
@@ -346,16 +346,35 @@ Threading Model
 # define AXTHREAD_MODEL_DEFINED     1
 #endif
 
-#ifndef AXTHREAD_MACH_SEMTIMED_HACK
+#ifndef AXTHREAD_GCD_SEMAPHORES
 # if AXTHREAD_OS_MACOSX
-#  define AXTHREAD_MACH_SEMTIMED_HACK 1
+#  define AXTHREAD_GCD_SEMAPHORES 1
+#  if defined(AXTHREAD_MACH_SEMAPHORES)
+#   if AXTHREAD_MACH_SEMAPHORES != 0
+#    undef AXTHREAD_GCD_SEMAPHORES
+#    define AXTHREAD_GCD_SEMAPHORES 0
+#   endif
+#  endif
 # else
-#  define AXTHREAD_MACH_SEMTIMED_HACK 0
+#  define AXTHREAD_GCD_SEMAPHORES 0
+# endif
+#endif
+#ifndef AXTHREAD_MACH_SEMAPHORES
+# if AXTHREAD_OS_MACOSX && !AXTHREAD_GCD_SEMAPHORES
+#  define AXTHREAD_MACH_SEMAPHORES 1
+# else
+#  define AXTHREAD_MACH_SEMAPHORES 0
 # endif
 #endif
 
-#if AXTHREAD_MACH_SEMTIMED_HACK
+#if AXTHREAD_GCD_SEMAPHORES
+# include <dispatch/dispatch.h>
+#endif
+
+#if AXTHREAD_MACH_SEMAPHORES
 # include <mach/mach_time.h>
+# include <mach/task.h>
+# include <mach/semaphore.h>
 #endif
 
 
@@ -3595,6 +3614,12 @@ AXTHREAD__ENTER_C
 #if AXTHREAD_MODEL_WINDOWS
 # define AXTHREAD_SEM_INITIALIZER ((HANDLE)0)
 typedef HANDLE axth_sem_t;
+#elif AXTHREAD_GCD_SEMAPHORES
+# define AXTHREAD_SEM_INITIALIZER ((dispatch_semaphore_t)0)
+typedef dispatch_semaphore_t axth_sem_t;
+#elif AXTHREAD_MACH_SEMAPHORES
+# define AXTHREAD_SEM_INITIALIZER {}
+typedef semaphore_t axth_sem_t;
 #elif AXTHREAD_MODEL_PTHREAD
 # define AXTHREAD_SEM_INITIALIZER {}
 typedef sem_t axth_sem_t;
@@ -3608,6 +3633,18 @@ AXTHREAD_FUNC axth_sem_t *AXTHREAD_CALL axth_sem_init( axth_sem_t *p, axth_u32_t
 # if AXTHREAD_MODEL_WINDOWS
 	/* FIXME: Or does it return INVALID_HANDLE_VALUE instead of NULL? */
 	if( !( *p = CreateSemaphoreW( NULL, uBase, 0x7FFFFFFFU, NULL ) ) ) {
+		return ( axth_sem_t * )0;
+	}
+
+	return p;
+# elif AXTHREAD_GCD_SEMAPHORES
+	if( !( *p = dispatch_semaphore_create( (int)(unsigned)uBase ) ) ) {
+		return ( axth_sem_t * )0;
+	}
+
+	return p;
+# elif AXTHREAD_MACH_SEMAPHORES
+	if( semaphore_create( current_task(), p, SYNC_POLICY_FIFO, (int)(unsigned)uBase ) != KERN_SUCCESS ) {
 		return ( axth_sem_t * )0;
 	}
 
@@ -3633,6 +3670,17 @@ AXTHREAD_FUNC axth_sem_t *AXTHREAD_CALL axth_sem_fini( axth_sem_t *p )
 		CloseHandle( *p );
 	}
 	return ( axth_sem_t * )0;
+# elif AXTHREAD_GCD_SEMAPHORES
+	if( p != ( axth_sem_t * )0 ) {
+		dispatch_release( *p );
+		*p = (dispatch_semaphore_t)0;
+	}
+	return ( axth_sem_t * )0;
+# elif AXTHREAD_MACH_SEMAPHORES
+	if( p != ( axth_sem_t * )0 ) {
+		semaphore_destroy( current_task(), *p );
+	}
+	return ( axth_sem_t * )0;
 # elif AXTHREAD_MODEL_PTHREAD
 	if( p != ( axth_sem_t * )0 ) {
 		sem_destroy( p );
@@ -3651,6 +3699,12 @@ AXTHREAD_FUNC int AXTHREAD_CALL axth_sem_signal( axth_sem_t *p )
 {
 # if AXTHREAD_MODEL_WINDOWS
 	return (int)!!ReleaseSemaphore( *p, 1, ( LONG * )0 );
+# elif AXTHREAD_GCD_SEMAPHORES
+	/* FIXME: ... What? https://developer.apple.com/reference/dispatch/1452919-dispatch_semaphore_signal?language=objc */
+	(void)dispatch_semaphore_signal( *p );
+	return 1;
+# elif AXTHREAD_MACH_SEMAPHORES
+	return (int)( semaphore_signal( *p ) == KERN_SUCCESS );
 # elif AXTHREAD_MODEL_PTHREAD
 	return (int)( sem_post( p ) == 0 );
 # else
@@ -3666,6 +3720,10 @@ AXTHREAD_FUNC int AXTHREAD_CALL axth_sem_wait( axth_sem_t *p )
 {
 # if AXTHREAD_MODEL_WINDOWS
 	return ( int )( WaitForSingleObject( *p, INFINITE ) == WAIT_OBJECT_0 );
+# elif AXTHREAD_GCD_SEMAPHORES
+	return ( int )( dispatch_semaphore_wait( *p, DISPATCH_TIME_FOREVER ) == 0 );
+# elif AXTHREAD_MACH_SEMAPHORES
+	return ( int )( semaphore_wait( *p ) == KERN_SUCCESS );
 # elif AXTHREAD_MODEL_PTHREAD
 	return ( int )( sem_wait( p ) == 0 );
 # else
@@ -3680,8 +3738,10 @@ AXTHREAD_FUNC int AXTHREAD_CALL axth_sem_timed_wait( axth_sem_t *p, axth_u32_t m
 {
 # if AXTHREAD_MODEL_WINDOWS
 	return ( int )( WaitForSingleObject( *p, milliseconds ) == WAIT_OBJECT_0 );
-# elif AXTHREAD_MODEL_PTHREAD
-#  if AXTHREAD_MACH_SEMTIMED_HACK
+# elif AXTHREAD_GCD_SEMAPHORES
+	return ( int )( dispatch_semaphore_wait( *p, dispatch_time( DISPATCH_TIME_NOW, ((int64_t)milliseconds)*1000000 ) ) == 0 );
+# elif AXTHREAD_MACH_SEMAPHORES
+	/*
     mach_timebase_info_data_t timebase;
     axth_u64_t initTime, currTime, deltaTime;
     axth_u32_t elapsedMilliseconds;
@@ -3707,7 +3767,11 @@ AXTHREAD_FUNC int AXTHREAD_CALL axth_sem_timed_wait( axth_sem_t *p, axth_u32_t m
     } while( elapsedMilliseconds < milliseconds );
 
     return 0;
-#  else
+	*/
+	/* FIXME: No try/timed wait for Mach semaphores? */
+	((void)milliseconds);
+	return ( int )( semaphore_wait( *p ) == KERN_SUCCESS );
+# elif AXTHREAD_MODEL_PTHREAD
 	if( !milliseconds ) {
 		return ( int )( sem_trywait( p ) == 0 );
 	}
@@ -3717,7 +3781,6 @@ AXTHREAD_FUNC int AXTHREAD_CALL axth_sem_timed_wait( axth_sem_t *p, axth_u32_t m
 	ts.tv_nsec = (milliseconds%1000)*1000;
 
 	return ( int )( sem_timedwait( p, &ts ) == 0 );
-#  endif
 # else
 #  error Could not determine how to implement axth_sem_timed_wait()
 # endif
