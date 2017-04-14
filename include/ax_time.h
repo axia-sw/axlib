@@ -8,7 +8,7 @@
 	other libraries, we do not use lossy floating-point operations to calculate
 	the current time (until a float is explicitly requested).
 
-	
+
 	USAGE
 	=====
 
@@ -23,7 +23,7 @@
 	conventions. Ensure that all source files including this use the same
 	definitions for these. (That can be done in your Makefile or project
 	settings.)
-	
+
 	AXTIME_CONVFUNC and AXTIME_CONVCALL are the same as AXTIME_FUNC and
 	AXTIME_CALL, but for the time conversion functions here. These functions
 	qualify as constexpr in C++11.
@@ -522,18 +522,17 @@ static axtm_u64_t AXTIME_CALL axtm__convfreq( axtm_u64_t t, axtm_u64_t tf )
 
 	return axtm__convres( t, f.QuadPart, tf );
 # elif AXTIME_PLATFORM_MACH
-	/* THIS IS NOT TESTED */
-	static mach_timebase_info_data_t info;
-	static int didinit = 0;
+	static axtm_u64_t rate = 0;
 
-	if( !didinit ) {
+	if( __builtin_expect( rate == 0, 0 ) ) {
+		static mach_timebase_info_data_t info;
 		if( mach_timebase_info( &info ) != KERN_SUCCESS ) {
 			return 0;
 		}
-		didinit = 1;
+		rate = ((axtm_u64_t)1000000000)*info.numer/info.denom;
 	}
 
-	return t*info.numer/(((axtm_u64_t)info.denom)*tf);
+	return axtm__convres( t, rate, tf );
 # elif AXTIME_PLATFORM_POSIX
 	return axtm__convres( t, AXTIME_NANOSECS, tf );
 # else
@@ -568,7 +567,17 @@ static axtm_u64_t axtm__read( void )
 
 	return t.QuadPart;
 # elif AXTIME_PLATFORM_MACH
-	return mach_absolute_time();
+	static axtm_u64_t base = 0;
+#  if defined(__GNUC__) || defined(__clang__)
+	if( __builtin_expect( base == 0, 0 ) ) {
+		base = mach_absolute_time();
+	}
+#  else
+	if( !base ) {
+		base = mach_absolute_time();
+	}
+#  endif
+	return mach_absolute_time() - base;
 # elif AXTIME_PLATFORM_POSIX
 	struct timespec t;
 
