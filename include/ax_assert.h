@@ -165,6 +165,10 @@
 #  define AXASSERT_BREAKPOINT()     EA_DEBUG_BREAK()
 # elif defined( _MSC_VER )
 #  define AXASSERT_BREAKPOINT()     __debugbreak()
+# elif ( defined(__GNUC__) || defined(__clang__) ) && ( defined(__x86_64__) || defined(__amd64__) )
+#  define AXASSERT_BREAKPOINT()     __asm__( "int $3" )
+# elif ( defined(__GNUC__) || defined(__clang__) ) && ( defined(__powerpc__) || defined(__arm__) || defined(__aarch64__) )
+#  define AXASSERT_BREAKPOINT()     __asm__( "trap" )
 # else
 #  define AXASSERT_BREAKPOINT()     __builtin_trap()
 # endif
@@ -380,7 +384,7 @@ static void AXASSERT_CALL axassert__default( axassert_info_t info )
 # ifdef INCGUARD_AX_LOGGER_H_
 	axlog_report_t rep;
 	unsigned logflags;
-# endif	
+# endif
 	int doerr;
 
 	title1 = axassert__title1( info.type ); (void)title1;
