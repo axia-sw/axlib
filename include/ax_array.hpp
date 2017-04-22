@@ -270,6 +270,38 @@ namespace ax
 	namespace policy
 	{
 
+		namespace detail
+		{
+
+			template<typename T>
+			struct alignas(T) UntypedBuffer
+			{
+				char data[ sizeof(T) ];
+
+				inline const T &get() const {
+					return *getPointer();
+				}
+				inline T &getMutable() {
+					return *getMutablePointer();
+				}
+
+				inline const T *getPointer() const {
+					return ( const T * )( &data[0] );
+				}
+				inline T *getMutablePointer() {
+					return ( T * )( &data[0] );
+				}
+
+				inline const void *getVoidPointer() const {
+					return ( const void * )getPointer();
+				}
+				inline void *getMutableVoidPointer() {
+					return ( void * )getMutablePointer();
+				}
+			};
+
+		}
+
 		template< typename TElement >
 		struct ArrayIndexing
 		{
@@ -282,14 +314,101 @@ namespace ax
 		{
 			typedef axarr_size_t AllocSizeType;
 
-			inline void *allocate( AllocSizeType cBytes )
+			inline void *allocate( AllocSizeType cBytes, AllocSizeType &cAllocedBytes )
 			{
-				return axarr_alloc( cBytes );
+				void *const p = axarr_alloc( cBytes );
+				cAllocedBytes = p != nullptr ? cBytes : 0;
+				return p;
 			}
 			inline void deallocate( void *pBytes, AllocSizeType cBytes )
 			{
 				((void)cBytes);
 				axarr_free( pBytes );
+			}
+		};
+
+		/*!
+		 * \brief Small array allocator, which uses a base-size of some kind
+		 *        for embedding the array until it reaches some limit.
+		 */
+		template< typename TElement, axstr_size_t tBaseSize, typename OverflowAllocator = ArrayAllocator<TElement> >
+		struct SmallArrayAllocator: private OverflowAllocator
+		{
+			static_assert( tBaseSize > 0, "Must specify a valid initial size." );
+
+			typedef axarr_size_t AllocSizeType;
+
+			static constexpr axarr_size_t cBaseBytes = tBaseSize*sizeof(TElement);
+
+			inline SmallArrayAllocator()
+			: OverflowAllocator()
+			, m_usingSelf( false )
+			{
+			}
+
+			inline void *allocate( AllocSizeType cBytes, AllocSizeType &cAllocedBytes )
+			{
+				if( !m_usingSelf && cBytes <= cBaseBytes ) {
+					m_usingSelf = true;
+					cAllocedBytes = cBaseBytes;
+					return reinterpret_cast< void * >( &m_allocMem[ 0 ] );
+				}
+
+				return OverflowAllocator::allocate( cBytes, cAllocedBytes );
+			}
+			inline void deallocate( void *pBytes, AllocSizeType cBytes )
+			{
+				if( pBytes == reinterpret_cast< void * >( &m_allocMem[ 0 ] ) ) {
+					AXARR_ASSERT( m_usingSelf == true );
+					AXARR_ASSERT( cBytes == cBaseBytes );
+
+					m_usingSelf = false;
+					return;
+				}
+
+				OverflowAllocator::deallocate( pBytes, cBytes );
+			}
+
+			inline void swap( SmallArrayAllocator &x, TElement *&a, TElement *&b )
+			{
+				if( !ownsPointer( a ) && !x.ownsPointer( b ) ) {
+					OverflowAllocator::swap( x, a, b );
+					return;
+				}
+
+				if( ownsPointer( a ) && !x.ownsPointer( b ) ) {
+					AXARR_MEMCPY( x.m_allocMem.getMutableVoidPointer(), m_allocMem.getVoidPointer(), cBaseBytes );
+					x.m_usingSelf = true;
+					m_usingSelf = false;
+					a = b;
+					b = x.m_allocMem.getMutablePointer();
+					return;
+				}
+
+				if( x.ownsPointer( b ) && !ownsPointer( a ) ) {
+					AXARR_MEMCPY( m_allocMem.getMutableVoidPointer(), x.m_allocMem.getVoidPointer(), cBaseBytes );
+					m_usingSelf = true;
+					x.m_usingSelf = false;
+					b = a;
+					a = x.m_allocMem.getMutablePointer();
+					return;
+				}
+
+				detail::UntypedBuffer<TElement> tempBuf[ tBaseSize ];
+				AXARR_MEMCPY( tempBuf.getMutableVoidPointer(), m_allocMem.getVoidPointer(), cBaseBytes );
+				AXARR_MEMCPY( m_allocMem.getMutableVoidPointer(), x.m_allocMem.getVoidPointer(), cBaseBytes );
+				AXARR_MEMCPY( x.m_allocMem.getMutableVoidPointer(), tempBuf.getVoidPointer(), cBaseBytes );
+				a = m_allocMem.getMutablePointer();
+				b = x.m_allocMem.getMutablePointer();
+			}
+
+		private:
+			detail::UntypedBuffer<TElement> m_allocMem[ tBaseSize ];
+			bool                            m_usingSelf;
+
+			inline bool ownsPointer( char *p ) const
+			{
+				return p >= &m_allocMem[0] && p <= &m_allocMem[ tBaseSize ];
 			}
 		};
 
@@ -620,6 +739,7 @@ namespace ax
 		typedef typename TAllocator::AllocSizeType AllocSizeType;
 		typedef Type *                             Iterator;
 		typedef const Type *                       ConstIterator;
+		typedef TAllocator                         Allocator;
 
 		//! \brief Default number of elements to round `resize()`/`reserve()`
 		//!        operations up to.
@@ -651,12 +771,12 @@ namespace ax
 		//! \param x mutable array to move from.
 		inline TMutArr( TMutArr &&x )
 		: m_cArr( x.m_cArr )
-		, m_cMax( x.m_cMax )
+		, m_cAllocedBytes( x.m_cAllocedBytes )
 		, m_pArr( x.m_pArr )
 		, m_cGranularity( x.m_cGranularity )
 		{
 			x.m_cArr = 0;
-			x.m_cMax = 0;
+			x.m_cAllocedBytes = 0;
 			x.m_pArr = nullptr;
 		}
 #endif
@@ -683,10 +803,10 @@ namespace ax
 		inline SizeType num() const { return m_cArr; }
 		//! \brief Retrieve the capacity of the array.
 		//! \return number of elements in the array.
-		inline SizeType max() const { return m_cMax; }
+		inline SizeType max() const { return m_cAllocedBytes/sizeof(TElement); }
 		//! \brief Retrieve the number of bytes this object owns.
 		//! \return number of bytes this instance owns.
-		inline AllocSizeType memSize() const { return sizeof( *this ) + m_cMax*sizeof( Type ); }
+		inline AllocSizeType memSize() const { return sizeof( *this ) + m_cAllocedBytes; }
 
 		//! \brief Reset the array to 0 elements.
 		//!
@@ -1186,19 +1306,19 @@ namespace ax
 		inline TMutArr &operator=( TMutArr &&x )
 		{
 			const axarr_size_t cArr = m_cArr;
-			const axarr_size_t cMax = m_cMax;
+			const axarr_size_t cMax = m_cAllocedBytes;
 			TElement *const    pArr = m_pArr;
 			const axarr_size_t cGra = m_cGranularity;
 
-			m_cArr = x.m_cArr;
-			m_cMax = x.m_cMax;
-			m_pArr = x.m_pArr;
-			m_cGranularity = x.m_cGranularity;
+			m_cArr          = x.m_cArr;
+			m_cAllocedBytes = x.m_cAllocedBytes;
+			m_pArr          = x.m_pArr;
+			m_cGranularity  = x.m_cGranularity;
 
-			x.m_cArr = cArr;
-			x.m_cMax = cMax;
-			x.m_pArr = pArr;
-			x.m_cGranularity = cGra;
+			x.m_cArr          = cArr;
+			x.m_cAllocedBytes = cMax;
+			x.m_pArr          = pArr;
+			x.m_cGranularity  = cGra;
 
 			return *this;
 		}
@@ -1297,10 +1417,10 @@ namespace ax
 		static const SizeType kGranF_NoGrow = SizeType(1)<<(sizeof(SizeType)*8-1);
 		static const SizeType kGranBits     = kGranF_NoGrow - 1;
 
-		SizeType m_cArr;
-		SizeType m_cMax;
-		Type *   m_pArr;
-		SizeType m_cGranularity;
+		SizeType      m_cArr;
+		AllocSizeType m_cAllocedBytes;
+		Type *        m_pArr;
+		SizeType      m_cGranularity;
 
 		static inline void construct( Type &x )
 		{
@@ -1383,7 +1503,7 @@ namespace ax
 		}
 		inline SizeType maxTables() const
 		{
-			return m_cMax/kGranularity + ( +( m_cMax%kGranularity != 0 ) );
+			return maxCount()/kGranularity + ( +( maxCount()%kGranularity != 0 ) );
 		}
 
 		inline SizeType num() const
@@ -1392,7 +1512,7 @@ namespace ax
 		}
 		inline SizeType max() const
 		{
-			return m_cMax;
+			return maxCount();
 		}
 
 		inline AllocSizeType memSize() const
@@ -1442,9 +1562,14 @@ namespace ax
 		}
 
 	private:
-		SizeType m_cArr;
-		SizeType m_cMax;
-		Type **  m_ppArr;
+		SizeType      m_cArr;
+		AllocSizeType m_cAllocedBytes;
+		Type **       m_ppArr;
+
+		inline SizeType maxCount() const
+		{
+			return m_cAllocedBytes / sizeof( TElement );
+		}
 
 		static inline void construct( Type &x )
 		{
@@ -1492,7 +1617,8 @@ namespace ax
 
 		inline void deleteCache()
 		{
-			for( SizeType j = 0; j < m_cMax; j += kGranularity ) {
+			const SizeType cMax = max();
+			for( SizeType j = 0; j < cMax; j += kGranularity ) {
 				const SizeType i = j/kGranularity;
 				free( m_ppArr[ i ] );
 			}
@@ -1503,7 +1629,7 @@ namespace ax
 	template< typename TElement, typename TAllocator >
 	inline TMutArr< TElement, TAllocator >::TMutArr()
 	: m_cArr( 0 )
-	, m_cMax( 0 )
+	, m_cAllocedBytes( 0 )
 	, m_pArr( NULL )
 	, m_cGranularity( kDefaultGranularity )
 	{
@@ -1511,7 +1637,7 @@ namespace ax
 	template< typename TElement, typename TAllocator >
 	inline TMutArr< TElement, TAllocator >::TMutArr( const TMutArr &arr )
 	: m_cArr( 0 )
-	, m_cMax( 0 )
+	, m_cAllocedBytes( 0 )
 	, m_pArr( NULL )
 	, m_cGranularity( arr.m_cGranularity )
 	{
@@ -1522,7 +1648,7 @@ namespace ax
 	template< typename TElement, typename TAllocator >
 	inline TMutArr< TElement, TAllocator >::TMutArr( const ArrayView &arr )
 	: m_cArr( 0 )
-	, m_cMax( 0 )
+	, m_cAllocedBytes( 0 )
 	, m_pArr( NULL )
 	, m_cGranularity( kDefaultGranularity )
 	{
@@ -1533,7 +1659,7 @@ namespace ax
 	template< typename TElement, typename TAllocator >
 	inline TMutArr< TElement, TAllocator >::TMutArr( SizeType cItems, const Type *pItems )
 	: m_cArr( 0 )
-	, m_cMax( 0 )
+	, m_cAllocedBytes( 0 )
 	, m_pArr( NULL )
 	, m_cGranularity( kDefaultGranularity )
 	{
@@ -1594,7 +1720,7 @@ namespace ax
 	template< typename TElement, typename TAllocator >
 	inline bool TMutArr< TElement, TAllocator >::reserve( SizeType size )
 	{
-		if( m_cMax >= size ) {
+		if( max() >= size ) {
 			return true;
 		} else if( ( m_cGranularity & kGranF_NoGrow ) == kGranF_NoGrow ) {
 			return false;
@@ -1619,8 +1745,9 @@ namespace ax
 		}
 
 		Type *pItems = NULL;
+		AllocSizeType cAllocedBytes = 0;
 		if( size > 0 ) {
-			pItems = reinterpret_cast< Type * >( Policies::Allocator::allocate( sizeof( Type )*size) );
+			pItems = reinterpret_cast< Type * >( Allocator::allocate( sizeof( Type )*size, cAllocedBytes ) );
 			if( !pItems ) {
 				return false;
 			}
@@ -1643,9 +1770,9 @@ namespace ax
 
 		}
 
-		Policies::Allocator::deallocate( reinterpret_cast< void * >( m_pArr ), sizeof( Type )*m_cMax );
+		Allocator::deallocate( reinterpret_cast< void * >( m_pArr ), m_cAllocedBytes );
 		m_pArr = pItems;
-		m_cMax = size;
+		m_cAllocedBytes = cAllocedBytes;
 
 		return true;
 	}
@@ -1810,6 +1937,11 @@ namespace ax
 	, m_cArr( arr.m_cArr )
 	{
 	}
+
+	/* ---------------------------------------------------------------------- */
+
+	template< typename T, axarr_size_t tBufSize, typename OverflowAllocator = policy::ArrayAllocator<T> >
+	using TSmallArr = TMutArr< T, policy::SmallArrayAllocator< T, tBufSize, OverflowAllocator > >;
 
 }
 
