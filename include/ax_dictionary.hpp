@@ -249,7 +249,7 @@ namespace ax
 		{
 			AX_ASSERT( isInitialized() );
 
-			if( !entry.pEntries ) {
+			if( !allocEntries( entry, m_cEntries ) ) {
 				return nullptr;
 			}
 
