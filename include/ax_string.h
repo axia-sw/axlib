@@ -321,8 +321,10 @@ ax_static_assert( sizeof( axstr_utf32_t ) == 4, "ax_string: axstr_utf32_t has in
 #ifndef AXSTR_MAX_PATH
 # if defined( _WIN32 )
 #  define AXSTR_MAX_PATH            32768
-# elif defined( linux )
+# elif defined( linux ) || defined(__linux__)
 #  define AXSTR_MAX_PATH            4096
+# elif defined( __APPLE__ )
+#  define AXSTR_MAX_PATH            1016
 # elif defined( PATH_MAX )
 #  define AXSTR_MAX_PATH            PATH_MAX
 # elif defined( _PATH_MAX )
@@ -332,7 +334,21 @@ ax_static_assert( sizeof( axstr_utf32_t ) == 4, "ax_string: axstr_utf32_t has in
 # elif defined( _MAX_PATH )
 #  define AXSTR_MAX_PATH            _MAX_PATH
 # else
-#  define AXSTR_MAX_PATH            256
+#  define AXSTR_MAX_PATH            250
+# endif
+#endif
+
+#ifndef AXSTR_MAX_NAME
+# if defined( NAME_MAX )
+#  define AXSTR_MAX_NAME            NAME_MAX
+# elif defined( _WIN32 )
+#  define AXSTR_MAX_NAME            248
+# elif defined( __APPLE__ )
+#  define AXSTR_MAX_NAME            250
+# elif defined( linux ) || defined( __linux__ )
+#  define AXSTR_MAX_NAME            255
+# else
+#  define AXSTR_MAX_NAME            128
 # endif
 #endif
 
@@ -3833,48 +3849,49 @@ AXSTR_FUNC char *AXSTR_CALL axstr_from_int_x( char *pszDstBuf, axstr_size_t cDst
 AXSTR_FUNC char *AXSTR_CALL axstr_from_float_x( char *pszDstBuf, axstr_size_t cDstBytes, axstr_real_t value, unsigned int radix, unsigned int maxTrailingDigits, unsigned int numDigitsForSep, char chDigitSep )
 #if AXSTR_IMPLEMENT
 {
-	( void )pszDstBuf;
-	( void )cDstBytes;
-	( void )value;
-	( void )radix;
-	( void )maxTrailingDigits;
-	( void )numDigitsForSep;
-	( void )chDigitSep;
+	static const unsigned int kMaxDigitsBuf = 255;
+	unsigned int maxDigits;
+	axstr_sint_t whole;
+	axstr_uint_t fract;
+	axstr_real_t f;
+	char digitsBuf[ kMaxDigitsBuf + 1 ];
 
-	return ( char * )0;
+	if( cDstBytes < 4 ) {
+		return ( char * )0;
+	}
+	if( radix < 2 || radix > 36 ) {
+		return ( char * )0;
+	}
 
-	/*
+	maxDigits = maxTrailingDigits > kMaxDigitsBuf ? kMaxDigitsBuf : maxTrailingDigits;
 
-		TODO: Convert the following to C (possibly with optimizations)
+	whole = (axstr_sint_t)value;
 
-		ax::MutStr ax::MutStr::FromFloat( double value, int radix, SizeType maxTrailingDigits, SizeType numDigitsForSep, char chDigitSep )
-		{
-			if( radix < 2 || radix > 36 ) {
-				return ax::MutStr();
-			}
-			const uint64 r = uint64( radix );
+	f = value - (axstr_real_t)whole;
+	while( f > (axstr_real_t)0.0 ) {
+		fract *= radix;
 
-			const DiffType maxDigits = maxTrailingDigits > 1024 ? 1024 : DiffType( maxTrailingDigits );
+		f *= radix;
+		fract += (ax_uint_t)( f*radix );
 
-			const int64 whole = int64( value );
+		f = f - (ax_uint_t)f;
+	}
 
-			double f = value - whole;
-			uint64 fract = 0;
-			while( f > 0.0 ) {
-				fract *= r;
+	if( !axstr_from_int_x( pszDstBuf, cDstBytes, whole, radix, numDigitsForSep, chDigitSep ) ) {
+		return ( char * )0;
+	}
+	if( !axstr_from_uint_x( digitsBuf, sizeof( digitsBuf ), fract, radix, 0, '\0' ) ) {
+		*pszDstBuf = '\0';
+		return ( char * )0;
+	}
+	digitsBuf[ maxDigits ] = '\0';
 
-				f *= r;
-				fract += uint64( f*r );
+	if( maxDigits > 0 ) {
+		axstr_cat( pszDstBuf, cDstBytes, "." );
+		axstr_cat( pszDstBuf, cDstBytes, digitsBuf );
+	}
 
-				f = f - uint64( f );
-			}
-
-			ax::MutStr Result = FromInteger( whole, radix, numDigitsForSep, chDigitSep );
-			Result.append( FromUnsignedInteger( fract, radix, ~SizeType( 0 ), '\0' ).left( maxDigits ) );
-
-			return Result;
-		}
-	*/
+	return pszDstBuf;
 }
 #else
 ;
@@ -3907,97 +3924,97 @@ AXSTR_FUNC char *AXSTR_CALL axstr_from_float( char *pszDstBuf, axstr_size_t cDst
 
 #if AXSTR_IMPLEMENT
 static const axstr_utf32_t g_axstr_katakana_conv_[] = {
-	0x0000FF67, // �    30A1
-	0x0000FF71, // �    30A2
-	0x0000FF68, // �    30A3
-	0x0000FF72, // �    30A4
-	0x0000FF69, // �    30A5
-	0x0000FF73, // �    30A6
-	0x0000FF6A, // �    30A7
-	0x0000FF74, // �    30A8
-	0x0000FF6B, // �    30A9
-	0x0000FF75, // �    30AA
-	0x0000FF76, // �    30AB
-	0xFF9EFF76, // ��   30AC
-	0x0000FF77, // �    30AD
-	0xFF9EFF77, // ��   30AE
-	0x0000FF78, // �    30AF
-	0xFF9EFF78, // ��   30B0
-	0x0000FF79, // �    30B1
-	0xFF9EFF79, // ��   30B2
-	0x0000FF7A, // �    30B3
-	0xFF9EFF7A, // ��   30B4
-	0x0000FF7B, // �    30B5
-	0xFF9EFF7B, // ��   30B6
-	0x0000FF7C, // �    30B7
-	0xFF9EFF7C, // ��   30B8
-	0x0000FF7D, // �    30B9
-	0xFF9EFF7D, // ��   30BA
-	0x0000FF7E, // �    30BB
-	0xFF9EFF7E, // ��   30BC
-	0x0000FF7F, // �    30BD
-	0xFF9EFF7F, // ��   30BE
-	0x0000FF80, // �    30BF
-	0xFF9EFF80, // ��   30C0
-	0x0000FF81, // �    30C1
-	0xFF9EFF81, // ��   30C2
-	0x0000FF6F, // �    30C3
-	0x0000FF82, // �    30C4
-	0xFF9EFF82, // ��   30C5
-	0x0000FF83, // �    30C6
-	0xFF9EFF83, // ��   30C7
-	0x0000FF84, // �    30C8
-	0xFF9EFF84, // ��   30C9
-	0x0000FF85, // �    30CA
-	0x0000FF86, // �    30CB
-	0x0000FF87, // �    30CC
-	0x0000FF88, // �    30CD
-	0x0000FF89, // �    30CE
-	0x0000FF8A, // �    30CF
-	0xFF9EFF8A, // ��   30D0
-	0xFF9FFF8A, // ��   30D1
-	0x0000FF8B, // �    30D2
-	0xFF9EFF8B, // ��   30D3
-	0xFF9FFF8B, // ��   30D4
-	0x0000FF8C, // �    30D5
-	0xFF9EFF8C, // ��   30D6
-	0xFF9FFF8C, // ��   30D7
-	0x0000FF8D, // �    30D8
-	0xFF9EFF8D, // ��   30D9
-	0xFF9FFF8D, // ��   30DA
-	0x0000FF8E, // �    30DB
-	0xFF9EFF8E, // ��   30DC
-	0xFF9FFF8E, // ��   30DD
-	0x0000FF8F, // �    30DE
-	0x0000FF90, // �    30DF
-	0x0000FF91, // �    30E0
-	0x0000FF92, // �    30E1
-	0x0000FF93, // �    30E2
-	0x0000FF6C, // �    30E3
-	0x0000FF94, // �    30E4
-	0x0000FF6D, // �    30E5
-	0x0000FF95, // �    30E6
-	0x0000FF6E, // �    30E7
-	0x0000FF96, // �    30E8
-	0x0000FF97, // �    30E9
-	0x0000FF98, // �    30EA
-	0x0000FF99, // �    30EB
-	0x0000FF9A, // �    30EC
-	0x0000FF9B, // �    30ED
-	0x0000FF9C, // �    30EE    NOTE: No half-width small wa? This uses the half-width wa.
-	0x0000FF9C, // �    30EF
-	0x00000000, // .    30F0    NOTE: No half-width version (uncommon; wi)
-	0x00000000, // .    30F1    NOTE: No half-width version (uncommon; we)
-	0x0000FF66, // �    30F2
-	0x0000FF9D, // �    30F3
-	0x0000FF73, // ��   30F4    NOTE: vu = u + diacritic
-	0x00000000, // .    30F5    NOTE: No half-width version (small ka)
-	0x00000000, // .    30F6    NOTE: No half-width version (small ke)
-	0xFF9EFF73, // ��   30F7    NOTE: va = wa + diacritic
-	0x00000000, // .    30F8    NOTE: No half-width version (vi = wi + diacritic; no wi)
-	0x00000000, // .    30F9    NOTE: No half-width version (ve = we + diacritic; no we)
-	0xFF9EFF66, // ��   30FA    NOTE: vo = wo + diacritic
-	0x0000FF65  // �    30FB    NOTE: This is a middle dot (half-width) not a period
+	0x0000FF67, // ァ 30A1
+	0x0000FF71, // ア 30A2
+	0x0000FF68, // ィ 30A3
+	0x0000FF72, // イ 30A4
+	0x0000FF69, // ゥ 30A5
+	0x0000FF73, // ウ 30A6
+	0x0000FF6A, // ェ 30A7
+	0x0000FF74, // エ 30A8
+	0x0000FF6B, // ォ 30A9
+	0x0000FF75, // オ 30AA
+	0x0000FF76, // カ 30AB
+	0xFF9EFF76, // ガ 30AC
+	0x0000FF77, // キ 30AD
+	0xFF9EFF77, // ギ 30AE
+	0x0000FF78, // ク 30AF
+	0xFF9EFF78, // グ 30B0
+	0x0000FF79, // ケ 30B1
+	0xFF9EFF79, // ゲ 30B2
+	0x0000FF7A, // コ 30B3
+	0xFF9EFF7A, // ゴ 30B4
+	0x0000FF7B, // サ 30B5
+	0xFF9EFF7B, // ザ 30B6
+	0x0000FF7C, // シ 30B7
+	0xFF9EFF7C, // ジ 30B8
+	0x0000FF7D, // ス 30B9
+	0xFF9EFF7D, // ズ 30BA
+	0x0000FF7E, // セ 30BB
+	0xFF9EFF7E, // ゼ 30BC
+	0x0000FF7F, // ソ 30BD
+	0xFF9EFF7F, // ゾ 30BE
+	0x0000FF80, // タ 30BF
+	0xFF9EFF80, // ダ 30C0
+	0x0000FF81, // チ 30C1
+	0xFF9EFF81, // ヂ 30C2
+	0x0000FF6F, // ッ 30C3
+	0x0000FF82, // ツ 30C4
+	0xFF9EFF82, // ヅ 30C5
+	0x0000FF83, // テ 30C6
+	0xFF9EFF83, // デ 30C7
+	0x0000FF84, // ト 30C8
+	0xFF9EFF84, // ド 30C9
+	0x0000FF85, // ナ 30CA
+	0x0000FF86, // ニ 30CB
+	0x0000FF87, // ヌ 30CC
+	0x0000FF88, // ネ 30CD
+	0x0000FF89, // ノ 30CE
+	0x0000FF8A, // ハ 30CF
+	0xFF9EFF8A, // バ 30D0
+	0xFF9FFF8A, // パ 30D1
+	0x0000FF8B, // ヒ 30D2
+	0xFF9EFF8B, // ビ 30D3
+	0xFF9FFF8B, // ピ 30D4
+	0x0000FF8C, // フ 30D5
+	0xFF9EFF8C, // ブ 30D6
+	0xFF9FFF8C, // プ 30D7
+	0x0000FF8D, // ヘ 30D8
+	0xFF9EFF8D, // ベ 30D9
+	0xFF9FFF8D, // ペ 30DA
+	0x0000FF8E, // ホ 30DB
+	0xFF9EFF8E, // ボ 30DC
+	0xFF9FFF8E, // ポ 30DD
+	0x0000FF8F, // マ 30DE
+	0x0000FF90, // ミ 30DF
+	0x0000FF91, // ム 30E0
+	0x0000FF92, // メ 30E1
+	0x0000FF93, // モ 30E2
+	0x0000FF6C, // ャ 30E3
+	0x0000FF94, // ヤ 30E4
+	0x0000FF6D, // ュ 30E5
+	0x0000FF95, // ユ 30E6
+	0x0000FF6E, // ョ 30E7
+	0x0000FF96, // ヨ 30E8
+	0x0000FF97, // ラ 30E9
+	0x0000FF98, // リ 30EA
+	0x0000FF99, // ル 30EB
+	0x0000FF9A, // レ 30EC
+	0x0000FF9B, // ロ 30ED
+	0x0000FF9C, // ヮ 30EE    NOTE: No half-width small wa? This uses the half-width wa.
+	0x0000FF9C, // ワ 30EF
+	0x00000000, // ヰ 30F0    NOTE: No half-width version (uncommon; wi)
+	0x00000000, // ヱ 30F1    NOTE: No half-width version (uncommon; we)
+	0x0000FF66, // ヲ 30F2
+	0x0000FF9D, // ン 30F3
+	0x0000FF73, // ヴ 30F4    NOTE: vu = u + diacritic
+	0x00000000, // ヵ 30F5    NOTE: No half-width version (small ka)
+	0x00000000, // ヶ 30F6    NOTE: No half-width version (small ke)
+	0xFF9EFF73, // ヷ 30F7    NOTE: va = wa + diacritic
+	0x00000000, // ヸ 30F8    NOTE: No half-width version (vi = wi + diacritic; no wi)
+	0x00000000, // ヹ 30F9    NOTE: No half-width version (ve = we + diacritic; no we)
+	0xFF9EFF66, // ヺ 30FA    NOTE: vo = wo + diacritic
+	0x0000FF65  // ・ 30FB    NOTE: This is a middle dot (half-width) not a period
 };
 
 static axstr_utf32_t AXSTR_CALL axstr_halfwidth_katakana_to_fullwidth_katakana_( axstr_utf32_t UTF32Char, axstr_utf32_t *pDstMark )
@@ -4041,7 +4058,7 @@ static axstr_utf32_t AXSTR_CALL axstr_fullwidth_katakana_to_halfwidth_katakana_(
  * \brief Convert a half-width character to a full-width character.
  *
  * Supports English letters and Japanese katakana.
- * e.g., "CLANNAD" to "�b�k�`�m�m�`�c"
+ * e.g., "CLANNAD" to "ＣＬＡＮＮＡＤ"
  */
 AXSTR_FUNC axstr_utf32_t AXSTR_CALL axstr_hantozen_ch( axstr_utf32_t UTF32Char )
 #if AXSTR_IMPLEMENT
@@ -4059,7 +4076,7 @@ AXSTR_FUNC axstr_utf32_t AXSTR_CALL axstr_hantozen_ch( axstr_utf32_t UTF32Char )
  * \brief Convert a full-width character to a half-width character.
  *
  * Supports English letters and Japanese katakana.
- * e.g., "�b�k�`�m�m�`�c" to "CLANNAD"
+ * e.g., "ＣＬＡＮＮＡＤ" to "CLANNAD"
  */
 AXSTR_FUNC axstr_utf32_t AXSTR_CALL axstr_zentohan_ch( axstr_utf32_t UTF32Char )
 #if AXSTR_IMPLEMENT
@@ -5020,15 +5037,33 @@ namespace ax
 		/*! \brief Split this string based on a delimiter to an array. */
 		template< typename TArrayContainer >
 		inline bool splitTo( TArrayContainer &outArray, Str inSeparator, EKeepEmpty::Type = EKeepEmpty::No ) const;
+		template< typename TArrayContainer >
+		inline TArrayContainer split( Str inSeparator, EKeepEmpty::Type keepEmpty = EKeepEmpty::No ) const {
+			TArrayContainer container;
+			splitTo< TArrayContainer >( container, inSeparator, keepEmpty );
+			return container;
+		}
 
 		/*! \brief Split this string based on a delimiter, but treats quoted
 		 *         items as separate tokens. */
 		template< typename TArrayContainer >
 		inline bool splitUnquotedTo( TArrayContainer &outArray, Str inSeparator, Str inEscape = '\\', EKeepQuotes::Type = EKeepQuotes::No, EKeepEmpty::Type = EKeepEmpty::No ) const;
+		template< typename TArrayContainer >
+		inline TArrayContainer splitUnquoted( Str inSeparator, Str inEscape = '\\', EKeepQuotes::Type keepQuotes = EKeepQuotes::No, EKeepEmpty::Type keepEmpty = EKeepEmpty::No ) const {
+			TArrayContainer container;
+			splitUnquotedTo< TArrayContainer >( container, inSeparator, inEscape, keepQuotes, keepEmpty );
+			return container;
+		}
 
 		/*! \brief Split this string by lines. */
 		template< typename TArrayContainer >
 		inline bool splitLinesTo( TArrayContainer &outArr, EKeepEmpty::Type = EKeepEmpty::No ) const;
+		template< typename TArrayContainer >
+		inline TArrayContainer splitLines( EKeepEmpty::Type keepEmpty = EKeepEmpty::No ) const {
+			TArrayContainer container;
+			splitLinesTo< TArrayContainer >( container, keepEmpty );
+			return container;
+		}
 
 		/*! \brief Find the index of the extension part of a filename within
 		 *         this string. */
@@ -5097,6 +5132,7 @@ namespace ax
 				return true;
 			}
 #endif
+
 			return endsWith( '/' );
 		}
 
@@ -5240,6 +5276,15 @@ namespace ax
 
 			return axstr_cmpn( m_pStr + ( m_cStr - x.m_cStr ), x.m_pStr, x.m_cStr );
 		}
+		/*! \brief Determine whether this string contains another. */
+		inline bool contains( Str x ) const
+		{
+			if( m_cStr < x.m_cStr ) {
+				return false;
+			}
+
+			return find( x ) != -1;
+		}
 
 		/*! \brief Determine whether this string starts with a given byte. */
 		inline bool startsWith( char x ) const
@@ -5258,6 +5303,19 @@ namespace ax
 			}
 
 			return m_pStr[ m_cStr - 1 ] == x;
+		}
+		/*! \brief Determine whether this string contains a given byte. */
+		inline bool contains( char x ) const
+		{
+			if( m_cStr < 1 ) {
+				return false;
+			}
+
+#if AXSTR_STDSTR_ENABLED
+			return memchr( ( const void * )m_pStr, +x, m_cStr ) != ( const void * )0;
+#else
+			return find( x, -1 ) != -1;
+#endif
 		}
 
 		/*! \brief Determine whether this string starts with any of the bytes
@@ -5298,6 +5356,22 @@ namespace ax
 
 			return false;
 		}
+		/*! \brief Determine whether this string contains any of the bytes of
+		 *         another string. */
+		inline bool containsAny( Str x ) const
+		{
+			if( m_cStr < 1 ) {
+				return false;
+			}
+
+			while( x.isUsed() ) {
+				if( find( x.readByte() ) != -1 ) {
+					return true;
+				}
+			}
+
+			return false;
+		}
 
 		/*! \brief Determine whether this string starts with another string,
 		 *         case-insensitive. */
@@ -5319,6 +5393,16 @@ namespace ax
 
 			return axstr_casecmpn( m_pStr + ( m_cStr - x.m_cStr ), x.m_pStr, x.m_cStr );
 		}
+		/*! \brief Determine whether this string contains another string,
+		 *         case-insensitive. */
+		inline bool caseContains( Str x ) const
+		{
+			if( m_cStr < x.m_cStr ) {
+				return false;
+			}
+
+			return caseFind( x ) != -1;
+		}
 
 		/*! \brief Determine whether this string starts with a given byte,
 		 *         case-insensitive. */
@@ -5339,6 +5423,16 @@ namespace ax
 			}
 
 			return axstr_tolower( m_pStr[ m_cStr - 1 ] ) == axstr_tolower( x );
+		}
+		/*! \brief Determine whether this string contains a given byte,
+		 *         case-insensitive. */
+		inline bool caseContains( char x ) const
+		{
+			if( m_cStr < 1 ) {
+				return false;
+			}
+
+			return caseFind( x ) != -1;
 		}
 
 		/*! \brief Determine whether this string starts with any of the bytes of
@@ -5377,6 +5471,22 @@ namespace ax
 				}
 
 				x = x.skip();
+			}
+
+			return false;
+		}
+		/*! \brief Determine whether this string contains any of the bytes of
+		 *         another string, case-insensitive. */
+		inline bool caseContainsAny( Str x ) const
+		{
+			if( m_cStr < 1 ) {
+				return false;
+			}
+
+			while( x.isUsed() ) {
+				if( caseFind( x.readByte() ) != -1 ) {
+					return true;
+				}
 			}
 
 			return false;
@@ -6054,6 +6164,18 @@ namespace ax
 		TMutStr<> tabbed( SizeType levels = 1 ) const;
 		TMutStr<> untabbed( SizeType levels = 1 ) const;
 
+		template< typename Allocator >
+		bool escapeTo( TMutStr< Allocator > &dst ) const;
+		template< typename Allocator >
+		bool unescapeTo( TMutStr< Allocator > &dst ) const;
+
+		TMutStr<> escaped() const;
+		TMutStr<> unescaped() const;
+
+		template< typename Allocator >
+		bool replaceTo( TMutStr< Allocator > &dst, Str searchFor, Str replaceWith ) const;
+		TMutStr<> replaced( Str searchFor, Str replaceWith ) const;
+
 		inline const char *pointer( DiffType index = 0 ) const
 		{
 			return SizeType( index ) < m_cStr ? &m_pStr[ index ] : 0;
@@ -6188,10 +6310,10 @@ namespace ax
 			return cUnclampedBytes < m_cStr ? cUnclampedBytes : m_cStr;
 		}
 	};
-	
-	
-	
-	
+
+
+
+
 	/*
 	===========================================================================
 
@@ -6201,10 +6323,10 @@ namespace ax
 
 	===========================================================================
 	*/
-	
+
 	namespace policy
 	{
-		
+
 		/*!
 		 * \brief Default heap-based allocator, using whatever `axstr_alloc` and
 		 *        `axstr_free` are defined to.
@@ -6212,7 +6334,7 @@ namespace ax
 		struct DefaultStringAllocator
 		{
 			typedef axstr_size_t AllocSizeType;
-			
+
 			inline void *allocate( AllocSizeType cBytes, AllocSizeType &cAllocedBytes )
 			{
 				void *const p = axstr_alloc( cBytes );
@@ -6232,14 +6354,14 @@ namespace ax
 				b = temp;
 			}
 		};
-		
+
 		/*!
 		 * \brief Null allocator, which always acts as if it's out-of-memory.
 		 */
 		struct NullStringAllocator
 		{
 			typedef axstr_size_t AllocSizeType;
-			
+
 			inline void *allocate( AllocSizeType, AllocSizeType &cAllocedBytes )
 			{
 				cAllocedBytes = 0;
@@ -6256,7 +6378,7 @@ namespace ax
 				b = temp;
 			}
 		};
-		
+
 		/*!
 		 * \brief Small string allocator, which uses a base-size of some kind
 		 *        for embedding the string until it reaches some limit.
@@ -6267,13 +6389,13 @@ namespace ax
 			static_assert( tBaseSize > 0, "Must specify a valid initial size." );
 
 			typedef axstr_size_t AllocSizeType;
-			
+
 			inline SmallStringAllocator()
 			: OverflowAllocator()
 			, m_usingSelf( false )
 			{
 			}
-			
+
 			inline void *allocate( AllocSizeType cBytes, AllocSizeType &cAllocedBytes )
 			{
 				if( !m_usingSelf && cBytes <= tBaseSize ) {
@@ -6281,7 +6403,7 @@ namespace ax
 					cAllocedBytes = tBaseSize;
 					return reinterpret_cast< void * >( &m_allocMem[ 0 ] );
 				}
-				
+
 				return OverflowAllocator::allocate( cBytes, cAllocedBytes );
 			}
 			inline void deallocate( void *pBytes, AllocSizeType cBytes )
@@ -6329,7 +6451,7 @@ namespace ax
 				a = m_allocMem;
 				b = x.m_allocMem;
 			}
-			
+
 		private:
 			char          m_allocMem[ tBaseSize ];
 			bool          m_usingSelf;
@@ -6339,9 +6461,9 @@ namespace ax
 				return p >= &m_allocMem[0] && p <= &m_allocMem[ tBaseSize ];
 			}
 		};
-		
+
 	}
-	
+
 	namespace detail
 	{
 
@@ -6352,20 +6474,20 @@ namespace ax
 		public:
 			typedef Str::DiffType DiffType;
 			typedef Str::SizeType SizeType;
-			
+
 			/// \brief Retrieve an immutable view of this string.
 			inline Str view() const
 			{
 				return Str( m_data, m_cLen );
 			}
-			
+
 			/// \brief  Retrieve this as a C-style string.
 			/// \return A valid pointer, always.
 			inline const char *c_str() const
 			{
 				return m_data != ( char * )0 ? m_data : "";
 			}
-			
+
 			/// \brief  Retrieve the base pointer to this string.
 			inline const char *get() const
 			{
@@ -6382,7 +6504,7 @@ namespace ax
 			{
 				return m_data;
 			}
-	
+
 			/// \brief  Find a given byte within the string.
 			/// \return `-1` if not found, or the zero-based index to the byte.
 			inline DiffType find( char ch, DiffType iAfter = -1 ) const
@@ -6404,7 +6526,7 @@ namespace ax
 			{
 				return view().findAny( pszChars, iAfter );
 			}
-	
+
 			/// \brief  Find a given byte within the string. Case insensitive.
 			/// \return `-1` if not found, or the zero-based index to the
 			///         byte.
@@ -6428,7 +6550,7 @@ namespace ax
 			{
 				return view().caseFindAny( pszChars, iAfter );
 			}
-	
+
 			/// \brief  Find the last occurrence of the given byte within the
 			///         string.
 			/// \return `-1` if not found, or the zero-based index to the byte.
@@ -6444,7 +6566,7 @@ namespace ax
 			{
 				return view().findLast( s );
 			}
-	
+
 			/// \brief Get the byte index for a given column index within the
 			///        string.
 			inline DiffType columnToByteIndex( SizeType columnIndex ) const
@@ -6462,7 +6584,7 @@ namespace ax
 			{
 				return SizeType( byteToColumnIndex( m_cLen ) );
 			}
-	
+
 			/// \brief Same as `find(char,DiffType)` but returns a pointer.
 			inline const char *findPtr( char ch, DiffType iAfter = -1 ) const
 			{
@@ -6479,7 +6601,7 @@ namespace ax
 			{
 				return pointer( findAny( pszChars, iAfter ) );
 			}
-	
+
 			/// \brief Same as `caseFind(char,DiffType)` but returns a pointer.
 			inline const char *caseFindPtr( char ch, DiffType iAfter = -1 ) const
 			{
@@ -6496,7 +6618,7 @@ namespace ax
 			{
 				return pointer( caseFindAny( pszChars, iAfter ) );
 			}
-	
+
 			/// \brief Same as `findLast(char)` but returns a pointer.
 			inline const char *findLastPtr( char c ) const
 			{
@@ -6507,14 +6629,20 @@ namespace ax
 			{
 				return pointer( findLast( s ) );
 			}
-	
+
 			/// \brief Split this string based on a delimiter to an array.
 			template< typename TArrayContainer >
 			inline bool splitTo( TArrayContainer &outArray, Str inSeparator, EKeepEmpty::Type keepEmpty = EKeepEmpty::No ) const
 			{
 				return view().splitTo< TArrayContainer >( outArray, inSeparator, keepEmpty );
 			}
-	
+			template< typename TArrayContainer >
+			inline TArrayContainer split( Str inSeparator, EKeepEmpty::Type keepEmpty = EKeepEmpty::No ) const {
+				TArrayContainer container;
+				splitTo< TArrayContainer >( container, inSeparator, keepEmpty );
+				return container;
+			}
+
 			/// \brief Split this string based on a delimiter, but treats quoted
 			///        items as separate tokens.
 			template< typename TArrayContainer >
@@ -6522,21 +6650,33 @@ namespace ax
 			{
 				return view().splitUnquotedTo< TArrayContainer >( outArray, inSeparator, inEscape, keepQuotes, keepEmpty );
 			}
-	
+			template< typename TArrayContainer >
+			inline TArrayContainer splitUnquoted( Str inSeparator, Str inEscape = '\\', EKeepQuotes::Type keepQuotes = EKeepQuotes::No, EKeepEmpty::Type keepEmpty = EKeepEmpty::No ) const {
+				TArrayContainer container;
+				splitUnquotedTo< TArrayContainer >( container, inSeparator, inEscape, keepQuotes, keepEmpty );
+				return container;
+			}
+
 			/// \brief Split this string by lines.
 			template< typename TArrayContainer >
 			inline bool splitLinesTo( TArrayContainer &outArr, EKeepEmpty::Type keepEmpty = EKeepEmpty::No ) const
 			{
 				return view().splitLinesTo< TArrayContainer >( outArr, keepEmpty );
 			}
-	
+			template< typename TArrayContainer >
+			inline TArrayContainer splitLines( EKeepEmpty::Type keepEmpty = EKeepEmpty::No ) const {
+				TArrayContainer container;
+				splitLinesTo< TArrayContainer >( container, keepEmpty );
+				return container;
+			}
+
 			/// \brief Find the index of the extension part of a filename within
 			///        this string.
 			inline DiffType findExtension() const
 			{
 				return view().findExtension();
 			}
-	
+
 			/// \brief Find the index of the first directory separator within
 			///        this string.
 			inline DiffType findDirSep( const DiffType iAfter = -1 ) const
@@ -6549,7 +6689,7 @@ namespace ax
 			{
 				return view().findLastDirSep();
 			}
-	
+
 			/// \brief Check whether this string starts with a directory
 			///        separator.
 			inline bool startsWithDirSep() const
@@ -6562,7 +6702,7 @@ namespace ax
 			{
 				return view().endsWithDirSep();
 			}
-	
+
 			/// \brief Retrieve the extension of this string as a separate
 			///        string view.
 			inline Str getExtension() const
@@ -6603,7 +6743,7 @@ namespace ax
 				return view().tryAppendPathTo( outStr, path );
 			}
 #endif
-	
+
 			/// \brief Check whether this string is equal to another,
 			///        case-insensitive.
 			inline bool caseCmp( Str x ) const
@@ -6616,7 +6756,7 @@ namespace ax
 			{
 				return view().cmp( x );
 			}
-	
+
 			/// \brief Determine whether this string should come before or after
 			///        another for sorting purposes, case-insensitive.
 			inline int sortCaseCmp( Str x ) const
@@ -6629,7 +6769,7 @@ namespace ax
 			{
 				return view().sortCmp( x );
 			}
-	
+
 			/// \brief Determine whether this string starts with another.
 			inline bool startsWith( Str x ) const
 			{
@@ -6640,7 +6780,12 @@ namespace ax
 			{
 				return view().endsWith( x );
 			}
-	
+			/// \brief Determine whether this string contains another.
+			inline bool contains( Str x ) const
+			{
+				return view().contains( x );
+			}
+
 			/// \brief Determine whether this string starts with a given byte.
 			inline bool startsWith( char x ) const
 			{
@@ -6651,7 +6796,12 @@ namespace ax
 			{
 				return m_cLen > 0 && m_data[ m_cLen - 1 ] == x;
 			}
-	
+			/// \brief Determine whether this string contains a given byte.
+			inline bool contains( char x ) const
+			{
+				return view().contains( x );
+			}
+
 			/// \brief Determine whether this string starts with any of the
 			///        bytes of another string.
 			inline bool startsWithAny( Str x ) const
@@ -6664,7 +6814,13 @@ namespace ax
 			{
 				return view().endsWithAny( x );
 			}
-	
+			/// \brief Determine whether this string contains any of the bytes
+			///        of another string.
+			inline bool containsAny( Str x ) const
+			{
+				return view().containsAny( x );
+			}
+
 			/// \brief Determine whether this string starts with another string,
 			///        case-insensitive.
 			inline bool caseStartsWith( Str x ) const
@@ -6677,7 +6833,13 @@ namespace ax
 			{
 				return view().caseEndsWith( x );
 			}
-	
+			/// \brief Determine whether this string contains another string,
+			///        case-insensitive.
+			inline bool caseContains( Str x ) const
+			{
+				return view().caseContains( x );
+			}
+
 			/// \brief Determine whether this string starts with a given byte,
 			///        case-insensitive.
 			inline bool caseStartsWith( char x ) const
@@ -6690,7 +6852,13 @@ namespace ax
 			{
 				return view().caseEndsWith( x );
 			}
-	
+			/// \brief Determine whether this string contains a given byte,
+			///        case-insensitive.
+			inline bool caseContains( char x ) const
+			{
+				return view().caseContains( x );
+			}
+
 			/// \brief Determine whether this string starts with any of the
 			///        bytes of another string, case-insensitive.
 			inline bool caseStartsWithAny( Str x ) const
@@ -6703,7 +6871,13 @@ namespace ax
 			{
 				return view().caseEndsWithAny( x );
 			}
-	
+			/// \brief Determine whether this string contains any of the bytes
+			///        of another string, case-insensitive.
+			inline bool caseContainsAny( Str x ) const
+			{
+				return view().caseContainsAny( x );
+			}
+
 			/// \brief Retrieve the left `n`-bytes of this string.
 			inline Str left( DiffType n ) const
 			{
@@ -6725,7 +6899,7 @@ namespace ax
 			{
 				return view().substr( startPos, endPos );
 			}
-	
+
 			/// \brief Retrieve the first byte of the string.
 			inline char firstByte() const
 			{
@@ -6736,7 +6910,7 @@ namespace ax
 			{
 				return m_cLen > 0 ? m_data[ m_cLen - 1 ] : '\0';
 			}
-	
+
 			/// \brief Retrieve a view of this string with left-hand whitespace
 			///        trimmed.
 			inline Str trimmedLeft() const
@@ -6754,7 +6928,7 @@ namespace ax
 			{
 				return view().trim();
 			}
-	
+
 			/// \brief Determine whether `subtext` is a substring (in the same
 			///        memory range) of this string.
 			inline bool hasSubstring( Str subtext ) const
@@ -6767,7 +6941,7 @@ namespace ax
 			{
 				return view().isSubstring( supertext );
 			}
-	
+
 			/// \brief Convert a string to a signed integer.
 			inline axstr_sint_t toInteger( int defaultRadix = AXSTR_DEFPARSE_RADIX, char chDigitSep = AXSTR_DIGITSEP_CH ) const
 			{
@@ -6783,13 +6957,13 @@ namespace ax
 			{
 				return view().toFloat( defaultRadix, chDigitSep );
 			}
-	
+
 			/// \brief Convert a string to a boolean.
 			inline bool toBool() const
 			{
 				return view().toBool();
 			}
-	
+
 			inline SizeType toEncoding( void *pDstBuf, SizeType cDstBytes, axstr_encoding_t enc, axstr_byteordermark_t bom = axstr_bom_disabled ) const
 			{
 				return view().toEncoding( pDstBuf, cDstBytes, enc, bom );
@@ -6803,7 +6977,7 @@ namespace ax
 			{
 				return view().toWStr( &dstBuf[0], tNumWChars );
 			}
-	
+
 			/// \brief Determine whether a string is enclosed in quotes.
 			inline bool isQuoted() const
 			{
@@ -6830,7 +7004,24 @@ namespace ax
 			{
 				return view().untabTo( dst, levels );
 			}
-	
+
+			template< typename Allocator >
+			inline bool escapeTo( TMutStr< Allocator > &dst ) const
+			{
+				return view().escapeTo( dst );
+			}
+			template< typename Allocator >
+			inline bool unescapeTo( TMutStr< Allocator > &dst ) const
+			{
+				return view().unescapeTo( dst );
+			}
+
+			template< typename Allocator >
+			bool replaceTo( TMutStr< Allocator > &dst, Str searchFor, Str replaceWith ) const
+			{
+				return view().replaceTo( dst, searchFor, replaceWith );
+			}
+
 			/// \brief Retrieve a pointer within the string from an index
 			inline const char *pointer( DiffType index = 0 ) const
 			{
@@ -6841,7 +7032,7 @@ namespace ax
 			{
 				return m_data;
 			}
-	
+
 			/// \brief Current length of the string in bytes (not including the
 			///        `NUL`-terminator).
 			inline SizeType len() const
@@ -6860,7 +7051,7 @@ namespace ax
 			{
 				return m_cLen > 0 ? m_cLen + 1 : 0;
 			}
-	
+
 			/// \brief Determine whether this string is empty.
 			inline bool isEmpty() const
 			{
@@ -6914,7 +7105,7 @@ namespace ax
 				outStartOff = minOff;
 				outEndOff = maxOff;
 			}
-		
+
 			/// \brief Clear the string.
 			inline void clear()
 			{
@@ -6923,7 +7114,7 @@ namespace ax
 					*m_data = '\0';
 				}
 			}
-			
+
 			/// \brief Replace all backslashes with forward slashes.
 			inline void backToForwardSlashes()
 			{
@@ -6934,7 +7125,7 @@ namespace ax
 					if( iLast < 0 ) {
 						break;
 					}
-	
+
 					m_data[ iLast ] = '/';
 				}
 			}
@@ -6948,11 +7139,11 @@ namespace ax
 					if( iLast < 0 ) {
 						break;
 					}
-	
+
 					m_data[ iLast ] = '\\';
 				}
 			}
-			
+
 			/// \brief Sanitize for use as a file name.
 			inline void sanitizeFilename( char chReplacement = '-' )
 			{
@@ -6967,14 +7158,14 @@ namespace ax
 				//   \  U+005C
 				//   |  U+007C
 				static const char *const pszSpecialChars = "\"*/:<>?\\|";
-	
+
 				char *const e = m_data + m_cLen;
 				for( char *p = m_data; p < e; ++p ) {
 					if( *( unsigned char * )p < 0x20 ) {
 						*p = chReplacement;
 						continue;
 					}
-					
+
 #if AXSTR_STDSTR_ENABLED
 					if( !strchr( pszSpecialChars, *p ) ) {
 						continue;
@@ -6987,12 +7178,12 @@ namespace ax
 							break;
 						}
 					}
-	
+
 					if( q != ( const char * )0 ) {
 						continue;
 					}
 #endif
-	
+
 					*p = chReplacement;
 				}
 			}
@@ -7020,7 +7211,7 @@ namespace ax
 				if( !cWhite ) {
 					return;
 				}
-			
+
 				const SizeType n = cLen - cWhite;
 
 				axstr__memmove( ( void * )p, m_cLen, ( const void * )( p + cWhite ), n );
@@ -7064,7 +7255,7 @@ namespace ax
 				const SizeType cRemainingLen = m_cLen - cLen;
 				const SizeType clampedOffset = uOffset < m_cLen ? uOffset : m_cLen;
 				const SizeType clampedLength = clampedOffset + cRemainingLen < m_cLen ? cRemainingLen : m_cLen - clampedOffset;
-			
+
 				if( !clampedLength ) {
 					return;
 				}
@@ -7074,7 +7265,7 @@ namespace ax
 				m_cLen -= clampedRemaining;
 				m_data[ m_cLen ] = '\0';
 			}
-		
+
 			template< typename OtherAllocator >
 			inline bool removeTo( TMutStr< OtherAllocator > &dst, SizeType uOffset, SizeType cLen ) const
 			{
@@ -7086,11 +7277,11 @@ namespace ax
 				if( !dst.reserve( clampedOffset + clampedLength ) ) {
 					return false;
 				}
-			
+
 				bool r = true;
 				r = r && dst.tryAssign( view().left( clampedOffset ) );
 				r = r && dst.tryAppend( view().right( clampedLength ) );
-			
+
 				return true;
 			}
 
@@ -7134,7 +7325,7 @@ namespace ax
 				m_cLen = cBytes;
 				m_data[ m_cLen ] = '\0';
 			}
-			
+
 			inline bool operator==( Str x ) const
 			{
 				return view().cmp( x );
@@ -7159,7 +7350,7 @@ namespace ax
 			{
 				return view().sortCmp( x ) >= 0;
 			}
-	
+
 			inline bool operator!() const
 			{
 				return !m_cLen;
@@ -7168,12 +7359,12 @@ namespace ax
 			{
 				return firstByte();
 			}
-	
+
 			inline char operator[]( SizeType i ) const
 			{
 				return i < m_cLen ? m_data[ i ] : '\0';
 			}
-			
+
 		protected:
 			char *   m_data;
 			SizeType m_cLen;
@@ -7203,9 +7394,9 @@ namespace ax
 			{
 			}
 		};
-		
+
 	}
-	
+
 	template< typename Allocator >
 	class TMutStr: private Allocator, public detail::MutStrCore
 	{
@@ -7214,7 +7405,7 @@ namespace ax
 		typedef detail::MutStrCore::DiffType      DiffType;
 		typedef detail::MutStrCore::SizeType      SizeType;
 		typedef typename Allocator::AllocSizeType AllocSizeType;
-		
+
 		TMutStr()
 		: Allocator()
 		, detail::MutStrCore()
@@ -7266,7 +7457,7 @@ namespace ax
 		{
 			return SizeType( m_cAllocedBytes > 0 ? m_cAllocedBytes - 1 : 0 );
 		}
-		
+
 		/// \brief  Prepare this string to hold enough space for a string of
 		///         `cLen`-bytes.
 		///
@@ -7317,7 +7508,7 @@ namespace ax
 
 			m_cLen = cLen;
 			m_data[ m_cLen ] = '\0';
-			
+
 			return true;
 		}
 		/// Remove all dynamic memory associated with this string.
@@ -7333,12 +7524,12 @@ namespace ax
 		inline TMutStr removed( SizeType uOffset, SizeType cLen ) const
 		{
 			TMutStr< Allocator > r;
-			
+
 			if( !removeTo( r, uOffset, cLen ) ) {
 				// FIXME: Signal error (axstr_cxx_error or something)
 				((void)0);
 			}
-			
+
 			return r;
 		}
 
@@ -7485,6 +7676,33 @@ namespace ax
 			return appended( s, e );
 		}
 
+		inline bool tryAppendUTF32Char( axstr_utf32_t utf32Char )
+		{
+			char buf[ 5 ] = { '\0', '\0', '\0', '\0', '\0' };
+			{
+				axstr_utf8_t *bp = (axstr_utf8_t*)&buf[0];
+				axstr_utf8_t *const be = (axstr_utf8_t*)&buf[sizeof(buf)-1];
+
+				if( !axstr_step_utf8_encode( &bp, be, utf32Char ) ) {
+					return false;
+				}
+			}
+
+			return tryAppend( Str( buf ) );
+		}
+		inline TMutStr &appendUTF32Char( axstr_utf32_t utf32Char )
+		{
+			if( !tryAppendUTF32Char( utf32Char ) ) {
+				// FIXME: Signal an error
+			}
+
+			return *this;
+		}
+		inline TMutStr appendedUTF32Char( axstr_utf32_t utf32Char ) const
+		{
+			return TMutStr(*this).appendUTF32Char( utf32Char );
+		}
+
 #ifdef INCGUARD_AX_PRINTF_H_
 	private:
 		static inline axpf_ptrdiff_t
@@ -7501,7 +7719,7 @@ namespace ax
 			if( !md ) {
 				return axpf_ptrdiff_t( -1 );
 			}
-			
+
 			const SizeType oldLen = md->len();
 			if( !md->tryAppend( Str( s, e ) ) ) {
 				return axpf_ptrdiff_t( -1 );
@@ -7538,7 +7756,7 @@ namespace ax
 		inline bool appendf( AXPF_PARM_ANNO Str formatStr, ... ) AXPF_FUNC_ANNO( 1, 2 )
 		{
 			va_list args;
-			
+
 			va_start( args, formatStr );
 			const bool r = appendfv( formatStr, args );
 			va_end( args );
@@ -7611,7 +7829,7 @@ namespace ax
 
 			return *this;
 		}
-		
+
 		/// \brief Replace the extension (e.g., ".txt") in this string with
 		///        another.
 		inline bool tryReplaceExtension( Str newExt )
@@ -7638,6 +7856,7 @@ namespace ax
 			( void )tryReplaceExtension( newExt );
 			return *this;
 		}
+
 		static inline Self fromWStr( const wchar_t *pwsSrc, SizeType cSrcChars )
 		{
 			Self r;
@@ -7678,100 +7897,73 @@ namespace ax
 			return fromWStr( pwszSrc, n );
 		}
 
+		static inline Self fromEncoding( void *pSrc, axstr_size_t cSrcLen, axstr_encoding_t enc = axstr_enc_unknown )
+		{
+			Self r;
+
+			// check for overflow
+			if( cSrcLen*4 + 1 < cSrcLen ) {
+				return Self();
+			}
+
+			if( !r.reserve( cSrcLen*4 ) ) {
+				return Self();
+			}
+
+			const axstr_size_t cDstLen =
+				axstr_from_encoding(
+					(void*)r.m_data, r.m_cAllocedBytes,
+					pSrc, cSrcLen,
+					enc
+				);
+
+			r.m_cLen = cDstLen;
+			r.m_data[ r.m_cLen ] = '\0';
+
+			return r;
+		}
+		template< typename TArrayContainer >
+		static inline Self fromEncoding( const TArrayContainer &src, axstr_encoding_t enc = axstr_enc_unknown )
+		{
+			return fromEncoding( (void*)src.pointer(), (axstr_size_t)src.len(), enc );
+		}
+
 		template< typename OtherAllocator >
 		inline bool quoteTo( TMutStr< OtherAllocator > &dst ) const
 		{
-			if( m_cLen + 2 < m_cLen || !dst.reserve( m_cLen + 2 ) ) {
-				return false;
-			}
-
-			dst.m_data[ 0 ] = '\"';
-			axstr__memcpy( dst.m_data + 1, reinterpret_cast< const void * >( m_data ), m_cLen );
-			dst.m_data[ m_cLen + 2 ] = '\"';
-			dst.m_data[ m_cLen + 3 ] = '\0';
-			dst.m_cLen = m_cLen + 2;
-
-			return true;
+			return view().quoteTo( dst );
 		}
 		template< typename OtherAllocator >
 		inline bool unquoteTo( TMutStr< OtherAllocator > &dst ) const
 		{
-			return dst.tryAssign( unquoted() );
+			return view().unquoteTo( dst );
 		}
 		template< typename OtherAllocator >
 		inline bool tabTo( TMutStr< OtherAllocator > &dst, SizeType levels = 1 ) const
 		{
-			const Str tabs( "\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t" );
-
-			if( !dst.reserve( len() ) ) {
-				return false;
-			}
-
-			Str self( view() );
-
-			if( !levels ) {
-				return dst.tryAssign( self );
-			}
-
-			dst.clear();
-			while( self.isUsed() ) {
-				const Str line( self.readLine() );
-
-				SizeType indents = levels;
-				while( indents > tabs.len() ) {
-					if( !dst.tryAppend( tabs ) ) {
-						return false;
-					}
-					indents -= tabs.len();
-				}
-				if( !dst.tryAppend( tabs.left( axstr_ptrdiff_t( levels ) ) ) ) {
-					return false;
-				}
-
-				if( !dst.tryAppend( line ) ) {
-					return false;
-				}
-
-				if( !dst.tryAppend( '\n' ) ) {
-					return false;
-				}
-			}
-
-			return true;
+			return view().tabTo( dst, levels );
 		}
 		template< typename OtherAllocator >
 		inline bool untabTo( TMutStr< OtherAllocator > &dst, SizeType levels = 1 ) const
 		{
-			if( !dst.reserve( len() ) ) {
-				return false;
-			}
+			return view().untabTo( dst, levels );
+		}
 
-			Str self( view() );
+		template< typename OtherAllocator >
+		bool escapeTo( TMutStr< OtherAllocator > &dst ) const
+		{
+			return view().escapeTo( dst );
+		}
+		template< typename OtherAllocator >
+		bool unescapeTo( TMutStr< OtherAllocator > &dst ) const
+		{
+			return view().unescapeTo( dst );
+		}
 
-			if( !levels ) {
-				return dst.tryAssign( self );
-			}
-
-			dst.clear();
-			while( self.isUsed() ) {
-				Str line( self.readLine() );
-
-				SizeType indents = levels;
-				while( indents-- > 0 ) {
-					if( !line.skipIfStartsWith( '\t' ) ) {
-						break;
-					}
-				}
-
-				if( !dst.tryAppend( line ) ) {
-					return false;
-				}
-				if( !dst.tryAppend( '\n' ) ) {
-					return false;
-				}
-			}
-
-			return true;
+		template< typename OtherAllocator >
+		bool replaceTo( TMutStr< OtherAllocator > &dst, Str searchFor, Str replaceWith ) const
+		{
+			return view().replaceTo( dst, searchFor, replaceWith );
 		}
 
 		inline Self quoted() const
@@ -7809,15 +8001,37 @@ namespace ax
 			}
 			return dst;
 		}
+		inline Self escaped() const
+		{
+			Self dst;
+			if( !escapeTo( dst ) ) {
+				return Self();
+			}
+			return dst;
+		}
+		inline Self unescaped() const
+		{
+			Self dst;
+			if( !unescapeTo( dst ) ) {
+				return Self();
+			}
+			return dst;
+		}
+		inline Self replaced( Str searchFor, Str replaceWith ) const
+		{
+			Self dst;
+			if( !replaceTo( dst, searchFor, replaceWith ) ) {
+				return Self();
+			}
+			return dst;
+		}
 
 		inline TMutStr &quoteMe()
 		{
 			if( !tryAppend( '\"' ) ) {
-				// FIXME: Signal error
 				return *this;
 			}
 			if( !tryPrepend( '\"' ) ) {
-				// FIXME: Signal error
 				m_data[ --m_cLen ] = '\0';
 				return *this;
 			}
@@ -7840,7 +8054,6 @@ namespace ax
 			Self tmp;
 
 			if( !tabTo( tmp, levels ) ) {
-				// FIXME: Signal error
 				return *this;
 			}
 
@@ -7851,11 +8064,76 @@ namespace ax
 			Self tmp;
 
 			if( !untabTo( tmp, levels ) ) {
-				// FIXME: Signal error
 				return *this;
 			}
 
 			return swap( tmp );
+		}
+
+		inline Self &escapeMe()
+		{
+			Self tmp;
+
+			if( !escapeTo( tmp ) ) {
+				return *this;
+			}
+
+			return swap( tmp );
+		}
+		inline Self &unescapeMe()
+		{
+			Self tmp;
+
+			if( !unescapeTo( tmp ) ) {
+				return *this;
+			}
+
+			return swap( tmp );
+		}
+
+		inline Self &replaceMe( Str searchFor, Str replaceWith )
+		{
+			Self tmp;
+
+			if( !replaceTo( tmp, searchFor, replaceWith ) ) {
+				return *this;
+			}
+
+			return swap( tmp );
+		}
+
+		static inline Self fromInteger( axstr_sint_t value, unsigned int radix = 10, unsigned int numDigitsForSep = AXSTR_DIGITSEP_SPACING, char chDigitSep = AXSTR_DIGITSEP_CH ) {
+			char buf[ 128 ];
+			if( !axstr_from_int_x( buf, sizeof( buf ), value, radix, numDigitsForSep, chDigitSep ) ) {
+				return Self();
+			}
+
+			Self r;
+			r.assign( buf );
+
+			return r;
+		}
+		static inline Self fromUnsignedInteger( axstr_uint_t value, unsigned int radix = 10, unsigned int numDigitsForSep = AXSTR_DIGITSEP_SPACING, char chDigitSep = AXSTR_DIGITSEP_CH ) {
+			char buf[ 128 ];
+			if( !axstr_from_uint_x( buf, sizeof( buf ), value, radix, numDigitsForSep, chDigitSep ) ) {
+				return Self();
+			}
+
+			Self r;
+			r.assign( buf );
+
+			return r;
+		}
+		static inline Self fromFloat( axstr_real_t value, unsigned int radix = 10, unsigned int maxTrailingDigits = AXSTR_FLOAT_TRAIL_DIGITS, unsigned int numDigitsForSep = AXSTR_DIGITSEP_SPACING, char chDigitSep = AXSTR_DIGITSEP_CH ) {
+			char buf[ 256 ];
+			if( !axstr_from_float_x( buf, sizeof( buf ), value, radix, maxTrailingDigits, numDigitsForSep, chDigitSep ) ) {
+				return Self();
+			}
+
+			Self r;
+			r.assign( buf );
+
+			return r;
 		}
 
 		inline TMutStr &operator=( Str s )
@@ -7903,8 +8181,20 @@ namespace ax
 
 			return m_data[ i ];
 		}
+		inline char at( SizeType i ) const
+		{
+			if( i >= len() ) {
+				return '\0';
+			}
+
+			return m_data[ i ];
+		}
 
 		inline char &operator[]( SizeType i )
+		{
+			return at( i );
+		}
+		inline char operator[]( SizeType i ) const
 		{
 			return at( i );
 		}
@@ -7923,13 +8213,13 @@ namespace ax
 
 			return *this;
 		}
-	
+
 	private:
 		AllocSizeType m_cAllocedBytes;
 	};
-	
+
 	typedef TMutStr< policy::DefaultStringAllocator > MutStr;
-	
+
 	template< axstr_size_t tBufSize, typename OverflowAllocator = policy::DefaultStringAllocator >
 	using TSmallStr = TMutStr< policy::SmallStringAllocator< tBufSize, OverflowAllocator > >;
 
@@ -8382,15 +8672,34 @@ namespace ax
 
 		template< typename TArrayContainer >
 		inline bool splitTo( TArrayContainer &outArray, Str inSeparator, EKeepEmpty::Type keepEmpty = EKeepEmpty::No ) const;
+		template< typename TArrayContainer >
+		inline TArrayContainer split( Str inSeparator, EKeepEmpty::Type keepEmpty = EKeepEmpty::No ) const {
+			TArrayContainer container;
+			splitTo< TArrayContainer >( container, inSeparator, keepEmpty );
+			return container;
+		}
 
 		template< typename TArrayContainer >
 		inline bool splitUnquotedTo( TArrayContainer &outArray, Str inSeparator, Str inEscape = '\\', EKeepQuotes::Type keepQuotes = EKeepQuotes::No, EKeepEmpty::Type keepEmpty = EKeepEmpty::No ) const;
+		template< typename TArrayContainer >
+		inline TArrayContainer splitUnquoted( Str inSeparator, Str inEscape = '\\', EKeepQuotes::Type keepQuotes = EKeepQuotes::No, EKeepEmpty::Type keepEmpty = EKeepEmpty::No ) const {
+			TArrayContainer container;
+			splitUnquotedTo< TArrayContainer >( container, inSeparator, inEscape, keepQuotes, keepEmpty );
+			return container;
+		}
+
 
 		/*! \brief Split this string by lines. */
 		template< typename TArrayContainer >
 		inline bool splitLinesTo( TArrayContainer &outArr ) const
 		{
 			return Str( *this ).splitLinesTo< TArrayContainer >( outArr );
+		}
+		template< typename TArrayContainer >
+		inline TArrayContainer splitLines( EKeepEmpty::Type keepEmpty = EKeepEmpty::No ) const {
+			TArrayContainer container;
+			splitLinesTo< TArrayContainer >( container, keepEmpty );
+			return container;
 		}
 
 		template< typename TString >
@@ -9245,6 +9554,226 @@ namespace ax
 		return dst.len() == cExpected;
 	}
 
+#define AXSTR_ESCAPE_LIST_() \
+	AXSTR_ESCAPE_( '\\', '\\' ) \
+	AXSTR_ESCAPE_( '\'', '\'' ) \
+	AXSTR_ESCAPE_( '\"', '\"' ) \
+	AXSTR_ESCAPE_( '\?', '\?' ) \
+	AXSTR_ESCAPE_( '\a', 'a' ) \
+	AXSTR_ESCAPE_( '\b', 'b' ) \
+	AXSTR_ESCAPE_( '\x1B', 'e' ) \
+	AXSTR_ESCAPE_( '\f', 'f' ) \
+	AXSTR_ESCAPE_( '\n', 'n' ) \
+	AXSTR_ESCAPE_( '\r', 'r' ) \
+	AXSTR_ESCAPE_( '\t', 't' ) \
+	AXSTR_ESCAPE_( '\v', 'v' )
+
+	template< typename Allocator >
+	inline bool Str::escapeTo( TMutStr< Allocator > &dst ) const
+	{
+		dst.clear();
+
+		const char *s = get();
+		const char *const e = getEnd();
+		const char *p = s;
+		while( p != e ) {
+			char chReplace = '\0';
+
+			switch( *p ) {
+#define AXSTR_ESCAPE_(SrcCh_,DstCh_) case SrcCh_: chReplace = DstCh_; break;
+			AXSTR_ESCAPE_LIST_()
+#undef AXSTR_ESCAPE_
+			case '\0':
+				chReplace = '0';
+				break;
+			default:
+				break;
+			}
+
+			const Str plainRange( s, p );
+			++p;
+
+			if( !chReplace ) {
+				continue;
+			}
+
+			s = p;
+
+			if( plainRange.isUsed() && !dst.tryAppend( plainRange ) ) {
+				goto fail;
+			}
+
+			if( !dst.tryAppend( '\\' ) ) {
+				goto fail;
+			}
+			if( !dst.tryAppend( chReplace ) ) {
+				goto fail;
+			}
+		}
+
+		if( !dst.tryAppend( Str( s, p ) ) ) {
+			goto fail;
+		}
+
+		return true;
+
+	fail:
+		dst.clear();
+		return false;
+	}
+	template< typename Allocator >
+	inline bool Str::unescapeTo( TMutStr< Allocator > &dst ) const
+	{
+		dst.clear();
+
+		const char *s = get();
+		const char *const e = getEnd();
+		const char *p = s;
+		while( p != e ) {
+			const char *const q = p;
+			if( *p++ != '\\' ) {
+				continue;
+			}
+
+			// Break in the case we hit the end of the string on an incomplete
+			// escape sequence.
+			if( p == e ) {
+				break;
+			}
+
+			switch( *p ) {
+#define AXSTR_ESCAPE_(SrcCh_,DstCh_) \
+	case DstCh_: \
+		if( !dst.tryAppend( Str( s, q ) ) ) { goto fail; } \
+		if( !dst.tryAppend( SrcCh_ ) ) { goto fail; } \
+		break;
+			AXSTR_ESCAPE_LIST_()
+#undef AXSTR_ESCAPE_
+			case '0': case '1': case '2': case '3':
+			case '4': case '5': case '6': case '7':
+				if( p + 2 <= e ) {
+					const char *os = p + 1;
+					const char *op = os;
+					while( op < e && axstr_isdigit_x( *op, 8 ) ) {
+						++op;
+						if( op - os > 3 ) {
+							os = op - 3;
+						}
+					}
+					const axstr_uint_t v = Str( os, op ).toUnsignedInteger( 8, '\0' );
+					if( !dst.tryAppend( char((unsigned char)v) ) ) {
+						goto fail;
+					}
+					p = op - 1; // p will be incremented later
+				}
+				break;
+			case 'x':
+				if( p + 2 <= e ) {
+					const char *hs = p + 1;
+					const char *hp = hs;
+					while( hp < e && axstr_isdigit_x( *hp, 16 ) ) {
+						++hp;
+						if( hp - hs > 2 ) {
+							hs = hp - 2;
+						}
+					}
+					const axstr_uint_t v = Str( hs, hp ).toUnsignedInteger( 16, '\0' );
+					if( !dst.tryAppend( char((unsigned char)v) ) ) {
+						goto fail;
+					}
+					p = hp - 1; // p will be incremented later
+				}
+				break;
+			case 'u':
+				if( p + 5 <= e ) {
+					const axstr_uint_t v = Str( p + 1, p + 5 ).toUnsignedInteger( 16, '\0' );
+					char buf[ 5 ] = { '\0', '\0', '\0', '\0', '\0' };
+					{
+						axstr_utf8_t *up = (axstr_utf8_t*)&buf[0];
+						axstr_utf8_t *const ue = (axstr_utf8_t*)&buf[sizeof(buf)-1];
+
+						if( !axstr_step_utf8_encode( &up, ue, axstr_utf32_t(v) ) ) {
+							buf[0] = '\?';
+						}
+					}
+					if( !dst.tryAppend( Str( buf ) ) ) {
+						goto fail;
+					}
+					p += 4;
+				}
+				break;
+			case 'U':
+				if( p + 9 <= e ) {
+					const axstr_uint_t v = Str( p + 1, p + 9 ).toUnsignedInteger( 16, '\0' );
+					char buf[ 5 ] = { '\0', '\0', '\0', '\0', '\0' };
+					{
+						axstr_utf8_t *up = (axstr_utf8_t*)&buf[0];
+						axstr_utf8_t *const ue = (axstr_utf8_t*)&buf[sizeof(buf)-1];
+
+						if( !axstr_step_utf8_encode( &up, ue, axstr_utf32_t(v) ) ) {
+							buf[0] = '\?';
+						}
+					}
+					if( !dst.tryAppend( Str( buf ) ) ) {
+						goto fail;
+					}
+					p += 8;
+				}
+				break;
+			default:
+				break;
+			}
+
+			++p;
+			s = p;
+		}
+
+		if( !dst.tryAppend( Str( s, p ) ) ) {
+			goto fail;
+		}
+
+		return true;
+
+	fail:
+		dst.clear();
+		return false;
+	}
+
+	template< typename Allocator >
+	inline bool Str::replaceTo( TMutStr< Allocator > &dst, Str searchFor, Str replaceWith ) const
+	{
+		dst.clear();
+
+		Str src( *this );
+		while( src.isUsed() ) {
+			const DiffType foundPos = src.find( searchFor );
+			if( foundPos != -1 ) {
+				if( !dst.tryAppend( src.left( foundPos ) ) ) {
+					goto fail;
+				}
+
+				if( !dst.tryAppend( replaceWith ) ) {
+					goto fail;
+				}
+
+				src = src.skip( foundPos );
+				src = src.skip( searchFor.len() );
+			} else {
+				if( !dst.tryAppend( src ) ) {
+					goto fail;
+				}
+
+				src = Str();
+			}
+		}
+
+		return true;
+
+	fail:
+		dst.clear();
+		return false;
+	}
+
 	inline TMutStr<> Str::quoted() const
 	{
 		TMutStr<> tmp;
@@ -9279,6 +9808,38 @@ namespace ax
 		TMutStr<> tmp;
 
 		if( !untabTo( tmp, levels ) ) {
+			return TMutStr<>();
+		}
+
+		return tmp;
+	}
+
+	inline TMutStr<> Str::escaped() const
+	{
+		TMutStr<> tmp;
+
+		if( !escapeTo( tmp ) ) {
+			return TMutStr<>();
+		}
+
+		return tmp;
+	}
+	inline TMutStr<> Str::unescaped() const
+	{
+		TMutStr<> tmp;
+
+		if( !unescapeTo( tmp ) ) {
+			return TMutStr<>();
+		}
+
+		return tmp;
+	}
+
+	inline TMutStr<> Str::replaced( Str searchFor, Str replaceWith ) const
+	{
+		TMutStr<> tmp;
+
+		if( !replaceTo( tmp, searchFor, replaceWith ) ) {
 			return TMutStr<>();
 		}
 
