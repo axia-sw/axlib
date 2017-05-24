@@ -2446,6 +2446,56 @@ namespace ax
 	\
 	axlog_submit_report( &rep )
 
+	// Create and submit a formatted report with file/line information
+	inline void reportfv( axlog_priority_t prio, const axlog_str_t &file, axlog_u32_t line, const char *pszFmt, AXLOG_VA_T args )
+	{
+		axlog_report_t rep;
+		char           buf[ AXLOG_FMTBUF_SIZE ];
+
+		axlog_init_reportexv( buf, sizeof(buf), &rep,
+			(axlog_u16_t(prio)|AXLOG_DEFAULT_FACILITY), &file, line,
+			(const axlog_str_t *)0, (const axlog_str_t *)0, pszFmt, args );
+
+		axlog_submit_report( &rep );
+	}
+	inline void reportf( axlog_priority_t prio, const axlog_str_t &file, axlog_u32_t line, const char *pszFmt, ... )
+	{
+		AXLOG_VA_T args;
+
+		AXLOG_VA_S( args, pszFmt );
+		reportfv( prio, file, line, pszFmt, args );
+		AXLOG_VA_E( args );
+	}
+	inline void reportf( axlog_priority_t prio, const axlog_str_t &file, const char *pszFmt, ... )
+	{
+		AXLOG_VA_T args;
+
+		AXLOG_VA_S( args, pszFmt );
+		reportfv( prio, file, 0, pszFmt, args );
+		AXLOG_VA_E( args );
+	}
+
+	// Create and submit a formatted report without any file/line information
+	inline void basicReportfv( axlog_priority_t prio, const char *pszFmt, AXLOG_VA_T args )
+	{
+		axlog_report_t rep;
+		char           buf[ AXLOG_FMTBUF_SIZE ];
+
+		axlog_init_reportexv( buf, sizeof(buf), &rep,
+			(axlog_u16_t(prio)|AXLOG_DEFAULT_FACILITY), (const axlog_str_t *)0,
+			0, (const axlog_str_t *)0, (const axlog_str_t *)0, pszFmt, args );
+
+		axlog_submit_report( &rep );
+	}
+	inline void basicReportf( axlog_priority_t prio, const char *pszFmt, ... )
+	{
+		AXLOG_VA_T args;
+
+		AXLOG_VA_S( args, pszFmt );
+		basicReportfv( prio, pszFmt, args );
+		AXLOG_VA_E( args );
+	}
+
 	// [axlogp_debug] Report debugging information
 	inline void debugf( const axlog_str_t &file, axlog_u32_t line, const char *pszFmt, ... )
 	{
