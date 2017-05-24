@@ -7077,8 +7077,14 @@ namespace ax
 			/// \brief Get a byte length clamped into bounds.
 			inline SizeType clampLength( SizeType uOffset, SizeType cLen ) const
 			{
+				// Handle overflow
+				if( uOffset + cLen < uOffset ) {
+					return m_cLen;
+				}
+
 				const SizeType s = clampIndex( uOffset );
 				const SizeType e = clampIndex( uOffset + cLen );
+
 				return e - s;
 			}
 			/// \brief Convert a position into an offset
@@ -7250,37 +7256,72 @@ namespace ax
 			}
 
 			/// \brief Remove a set of bytes from the string.
-			inline void remove( SizeType uOffset, SizeType cLen )
+			inline void removeByPositions( DiffType startPos, DiffType endPos )
 			{
-				const SizeType cRemainingLen = m_cLen - cLen;
-				const SizeType clampedOffset = uOffset < m_cLen ? uOffset : m_cLen;
-				const SizeType clampedLength = clampedOffset + cRemainingLen < m_cLen ? cRemainingLen : m_cLen - clampedOffset;
+				SizeType startOff, endOff;
+				convertPositionRangeToOffsets( startOff,endOff, startPos,endPos );
+
+				const SizeType cLen = endOff - startOff;
+				removeByOffsetAndSize( startOff, cLen );
+			}
+			template< typename OtherAllocator >
+			inline bool removeByPositionsTo( TMutStr< OtherAllocator > &dst, DiffType startPos, DiffType endPos ) const
+			{
+				SizeType startOff, endOff;
+				convertPositionRangeToOffsets( startOff,endOff, startPos,endPos );
+
+				const SizeType cLen = endOff - startOff;
+				return removeByOffsetAndSizeTo( dst, startOff, cLen );
+			}
+
+			/// \brief Remove a set of bytes from the string.
+			inline void removeByOffsetAndSize( SizeType uOffset, SizeType cLen )
+			{
+				const SizeType clampedOffset = clampIndex( uOffset );
+				const SizeType clampedLength = clampLength( clampedOffset, cLen );
 
 				if( !clampedLength ) {
 					return;
 				}
 
-				const SizeType clampedRemaining = m_cLen - clampedOffset;
-				axstr__memmove( m_data + clampedOffset, clampedRemaining, m_data + clampedOffset + cLen, clampedRemaining );
-				m_cLen -= clampedRemaining;
+				const SizeType cLeftBytes = clampedOffset;
+				const SizeType cRightBytes = m_cLen - clampedLength - clampedOffset;
+
+				const SizeType cRemaining = cLeftBytes + cRightBytes;
+
+				axstr__memmove( m_data + cLeftBytes, m_cLen - cLeftBytes, m_data + ( m_cLen - cRightBytes ), cRightBytes );
+				m_cLen = cRemaining;
 				m_data[ m_cLen ] = '\0';
 			}
 
 			template< typename OtherAllocator >
-			inline bool removeTo( TMutStr< OtherAllocator > &dst, SizeType uOffset, SizeType cLen ) const
+			inline bool removeByOffsetAndSizeTo( TMutStr< OtherAllocator > &dst, SizeType uOffset, SizeType cLen ) const
 			{
-				const SizeType cRemainingLen = m_cLen - cLen;
-				const SizeType clampedOffset = uOffset < m_cLen ? uOffset : m_cLen;
-				const SizeType clampedLength = clampedOffset + cRemainingLen < m_cLen ? cRemainingLen : m_cLen - clampedOffset;
+				const SizeType clampedOffset = clampIndex( uOffset );
+				const SizeType clampedLength = clampLength( clampedOffset, cLen );
 
 				dst.clear();
-				if( !dst.reserve( clampedOffset + clampedLength ) ) {
+				if( !clampedLength ) {
+					return true;
+				}
+
+				const SizeType cLeftBytes = clampedOffset;
+				const SizeType cRightBytes = m_cLen - clampedLength - clampedOffset;
+
+				const SizeType cRemaining = cLeftBytes + cRightBytes;
+
+				if( !dst.reserve( cRemaining ) ) {
 					return false;
 				}
 
 				bool r = true;
-				r = r && dst.tryAssign( view().left( clampedOffset ) );
-				r = r && dst.tryAppend( view().right( clampedLength ) );
+				r = r && dst.tryAssign( view().left( cLeftBytes ) );
+				r = r && dst.tryAppend( view().right( cRightBytes ) );
+
+				if( !r ) {
+					dst.clear();
+					return false;
+				}
 
 				return true;
 			}
@@ -7521,11 +7562,22 @@ namespace ax
 			return *this;
 		}
 
-		inline TMutStr removed( SizeType uOffset, SizeType cLen ) const
+		inline TMutStr removedByPositions( DiffType startPos, DiffType endPos ) const
 		{
 			TMutStr< Allocator > r;
 
-			if( !removeTo( r, uOffset, cLen ) ) {
+			if( !removeByPositionsTo( r, startPos, endPos ) ) {
+				// FIXME: Signal error (axstr_cxx_error or something)
+				((void)0);
+			}
+
+			return r;
+		}
+		inline TMutStr removedByOffsetAndSize( SizeType uOffset, SizeType cLen ) const
+		{
+			TMutStr< Allocator > r;
+
+			if( !removeByOffsetAndSizeTo( r, uOffset, cLen ) ) {
 				// FIXME: Signal error (axstr_cxx_error or something)
 				((void)0);
 			}
@@ -7535,29 +7587,57 @@ namespace ax
 
 		/// \brief Extract a substring, removing it from this string.
 		template< typename OtherAllocator >
-		inline bool extractTo( TMutStr< OtherAllocator > &dst, DiffType startPos, DiffType endPos )
+		inline bool extractByPositionsTo( TMutStr< OtherAllocator > &dst, DiffType startPos, DiffType endPos )
 		{
 			SizeType startOff, endOff;
 			convertPositionRangeToOffsets( startOff, endOff, startPos, endPos );
 
 			const SizeType cLen = endOff - startOff;
-			if( !cLen ) {
+			return extractByOffsetAndSizeTo( dst, startOff, cLen );
+		}
+		/// \brief Extract a substring, removing it from this string.
+		inline TMutStr extractByPositions( DiffType startPos, DiffType endPos )
+		{
+			TMutStr dst;
+			extractByPositionsTo( dst, startPos, endPos );
+			return dst;
+		}
+
+		/// \brief Extract a substring, removing it from this string.
+		template< typename OtherAllocator >
+		inline bool extractByOffsetAndSizeTo( TMutStr< OtherAllocator > &dst, SizeType uOffset, SizeType cLength )
+		{
+			if( uOffset + cLength < uOffset ) {
+				return false;
+			}
+
+			if( uOffset > m_cLen ) {
+				uOffset = m_cLen;
+			}
+			if( uOffset + cLength > m_cLen ) {
+				cLength = m_cLen - uOffset;
+			}
+
+			if( !cLength ) {
 				dst.clear();
 				return true;
 			}
 
-			if( !dst.tryAssign( Str( m_data + startOff, m_data + endOff ) ) ) {
+			const char *const s = m_data + uOffset;
+			const char *const e = s + cLength;
+
+			if( !dst.tryAssign( Str( s, e ) ) ) {
 				return false;
 			}
 
-			remove( startOff, cLen );
+			removeByOffsetAndSize( uOffset, cLength );
 			return true;
 		}
 		/// \brief Extract a substring, removing it from this string.
-		inline TMutStr extract( DiffType startPos, DiffType endPos )
+		inline TMutStr extractByOffsetAndSize( DiffType startPos, DiffType endPos )
 		{
 			TMutStr dst;
-			extractTo( dst, startPos, endPos );
+			extractByOffsetAndSizeTo( dst, startPos, endPos );
 			return dst;
 		}
 
@@ -8044,7 +8124,7 @@ namespace ax
 				m_data[ --m_cLen ] = '\0';
 			}
 			if( view().startsWith( '\"' ) ) {
-				remove( 0, 1 );
+				removeByOffsetAndSize( 0, 1 );
 			}
 
 			return *this;
