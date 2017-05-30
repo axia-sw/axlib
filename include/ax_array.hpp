@@ -972,7 +972,11 @@ namespace ax
 		//! \param  pItems Pointer to the items array to assign. Must not be
 		//!                `nullptr`.
 		//! \return `true` on success; `false` otherwise.
-		bool assign( SizeType cItems, const Type *pItems );
+		bool tryAssign( SizeType cItems, const Type *pItems );
+		inline bool assign( SizeType cItems, const Type *pItems )
+		{
+			return tryAssign( cItems, pItems );
+		}
 		//! \brief  Set this to be another array.
 		//!
 		//! The existing elements of this array will be discarded if present.
@@ -982,7 +986,11 @@ namespace ax
 		//!
 		//! \param  x Single element of the new array.
 		//! \return `true` on success; `false` otherwise.
-		inline bool assign( const Type &x ) { return assign( 1, &x ); }
+		inline bool tryAssign( const Type &x ) { return tryAssign( 1, &x ); }
+		inline bool assign( const Type &x )
+		{
+			return tryAssign( 1, &x );
+		}
 		//! \brief  Set this to be another array.
 		//!
 		//! The existing elements of this array will be discarded if present.
@@ -993,7 +1001,12 @@ namespace ax
 		//! \param  arr Array to assign.
 		//! \return `true` on success; `false` otherwise.
 		template< SizeType tLen >
-		inline bool assign( const Type( &arr )[ tLen ] ) { return assign( tLen, arr ); }
+		inline bool tryAssign( const Type( &arr )[ tLen ] ) { return tryAssign( tLen, arr ); }
+		template< SizeType tLen >
+		inline bool assign( const Type( &arr )[ tLen ] )
+		{
+			return tryAssign( tLen, arr );
+		}
 		//! \brief  Set this to be another array.
 		//!
 		//! The existing elements of this array will be discarded if present.
@@ -1006,7 +1019,11 @@ namespace ax
 		//! \param  cItems Number of items including and after `first` to
 		//!                assign.
 		//! \return `true` on success; `false` otherwise.
-		inline bool assign( const TMutArr &arr, SizeType first = 0, DiffType cItems = -1 ) { return assign( cItems < 0 ? arr.num() + 1 + cItems : cItems, arr.pointer( first ) ); }
+		inline bool tryAssign( const TMutArr &arr, SizeType first = 0, DiffType cItems = -1 ) { return tryAssign( cItems < 0 ? arr.num() + 1 + cItems : cItems, arr.pointer( first ) ); }
+		inline bool assign( const TMutArr &arr, SizeType first = 0, DiffType cItems = -1 )
+		{
+			return tryAssign( arr, first, cItems );
+		}
 		//! \brief  Set this to be another array.
 		//!
 		//! The existing elements of this array will be discarded if present.
@@ -1016,7 +1033,11 @@ namespace ax
 		//!
 		//! \param  arr Array view to assign from.
 		//! \return `true` on success; `false` otherwise.
-		inline bool assign( const ArrayView &arr ) { return assign( arr.num(), arr.get() ); }
+		inline bool tryAssign( const ArrayView &arr ) { return tryAssign( arr.num(), arr.get() ); }
+		inline bool assign( const ArrayView &arr )
+		{
+			return tryAssign( arr.num(), arr.get() );
+		}
 
 		//! \brief  Append another array to the end of this array.
 		//!
@@ -1028,7 +1049,11 @@ namespace ax
 		//! \param  cItems Number of items to append.
 		//! \param  pItems Pointer to the array of items to append.
 		//! \return `true` on success; `false` otherwise.
-		bool append( SizeType cItems, const Type *pItems );
+		bool tryAppend( SizeType cItems, const Type *pItems );
+		inline bool append( SizeType cItems, const Type *pItems )
+		{
+			return tryAppend( cItems, pItems );
+		}
 		//! \brief  Append a single element to this array.
 		//!
 		//! This command will fail if there is not enough memory to hold the new
@@ -1038,7 +1063,11 @@ namespace ax
 		//!
 		//! \param  x Element to append.
 		//! \return `true` on success; `false` otherwise.
-		inline bool append( const Type &x ) { return append( 1, &x ); }
+		inline bool tryAppend( const Type &x ) { return tryAppend( 1, &x ); }
+		inline bool append( const Type &x )
+		{
+			return tryAppend( 1, &x );
+		}
 		//! \brief  Append another array to the end of this array.
 		//!
 		//! This command will fail if there is not enough memory to hold the new
@@ -1049,7 +1078,12 @@ namespace ax
 		//! \param  arr Array to append.
 		//! \return `true` on success; `false` otherwise.
 		template< SizeType tLen >
-		inline bool append( const Type( &arr )[ tLen ] ) { return append( tLen, arr ); }
+		inline bool tryAppend( const Type( &arr )[ tLen ] ) { return tryAppend( tLen, arr ); }
+		template< SizeType tLen >
+		inline bool append( const Type( &arr )[ tLen ] )
+		{
+			return tryAppend( tLen, arr );
+		}
 		//! \brief  Append another array to the end of this array.
 		//!
 		//! This command will fail if there is not enough memory to hold the new
@@ -1064,7 +1098,11 @@ namespace ax
 		//!                is negative, then this is the number of elements to
 		//!                append from the end of `arr`.
 		//! \return `true` on success; `false` otherwise.
-		inline bool append( const TMutArr &arr, SizeType first = 0, DiffType cItems = -1 ) { return append( cItems < 0 ? arr.num() + 1 + cItems : cItems, arr.pointer( first ) ); }
+		inline bool tryAppend( const TMutArr &arr, SizeType first = 0, DiffType cItems = -1 ) { return tryAppend( cItems < 0 ? arr.num() + 1 + cItems : cItems, arr.pointer( first ) ); }
+		inline bool append( const TMutArr &arr, SizeType first = 0, DiffType cItems = -1 )
+		{
+			return tryAppend( arr, first, cItems );
+		}
 		//! \brief  Append a default constructed element to the end of this
 		//!         array.
 		//!
@@ -1074,7 +1112,11 @@ namespace ax
 		//! "no grow" setting. (See `setNoGrow()` for more details.)
 		//!
 		//! \return `true` on success; `false` otherwise.
-		inline bool append() { return resize( m_cArr + 1 ); }
+		inline bool tryAppend() { return resize( m_cArr + 1 ); }
+		inline bool append()
+		{
+			return resize( m_cArr + 1 );
+		}
 		//! \brief  Append another array to the end of this array.
 		//!
 		//! This command will fail if there is not enough memory to hold the new
@@ -1084,7 +1126,11 @@ namespace ax
 		//!
 		//! \param  arr Array view to append.
 		//! \return `true` on success; `false` otherwise.
-		inline bool append( const ArrayView &arr ) { return append( arr.num(), arr.get() ); }
+		inline bool tryAppend( const ArrayView &arr ) { return tryAppend( arr.num(), arr.get() ); }
+		inline bool append( const ArrayView &arr )
+		{
+			return tryAppend( arr.num(), arr.get() );
+		}
 
 		//! \brief  Insert another array to the beginning of this array.
 		//!
@@ -1096,7 +1142,11 @@ namespace ax
 		//! \param  cItems Number of elements in `pItems` to "prepend."
 		//! \param  pItems Array to "prepend."
 		//! \return `true` on success; `false` otherwise.
-		bool prepend( SizeType cItems, const Type *pItems );
+		bool tryPrepend( SizeType cItems, const Type *pItems );
+		inline bool prepend( SizeType cItems, const Type *pItems )
+		{
+			return tryPrepend( cItems, pItems );
+		}
 		//! \brief  Insert an element at the beginning of this array.
 		//!
 		//! This command will fail if there is not enough memory to hold the new
@@ -1106,7 +1156,11 @@ namespace ax
 		//!
 		//! \param  x Element to "prepend."
 		//! \return `true` on success; `false` otherwise.
-		inline bool prepend( const Type &x ) { return prepend( 1, &x ); }
+		inline bool tryPrepend( const Type &x ) { return tryPrepend( 1, &x ); }
+		inline bool prepend( const Type &x )
+		{
+			return tryPrepend( 1, &x );
+		}
 		//! \brief  Insert another array to the beginning of this array.
 		//!
 		//! This command will fail if there is not enough memory to hold the new
@@ -1117,7 +1171,12 @@ namespace ax
 		//! \param  arr Array to "prepend."
 		//! \return `true` on success; `false` otherwise.
 		template< SizeType tLen >
-		inline bool prepend( const Type( &arr )[ tLen ] ) { return prepend( tLen, arr ); }
+		inline bool tryPrepend( const Type( &arr )[ tLen ] ) { return tryPrepend( tLen, arr ); }
+		template< SizeType tLen >
+		inline bool prepend( const Type( &arr )[ tLen ] )
+		{
+			return tryPrepend( tLen, arr );
+		}
 		//! \brief  Insert another array to the beginning of this array.
 		//!
 		//! This command will fail if there is not enough memory to hold the new
@@ -1129,7 +1188,11 @@ namespace ax
 		//! \param  first  Index of the first item in `arr` to "prepend."
 		//! \param  cItems Number of items after `first` to "prepend."
 		//! \return `true` on success; `false` otherwise.
-		inline bool prepend( const TMutArr &arr, SizeType first = 0, DiffType cItems = -1 ) { return prepend( cItems < 0 ? arr.num() + 1 + cItems : cItems, arr.pointer( first ) ); }
+		inline bool tryPrepend( const TMutArr &arr, SizeType first = 0, DiffType cItems = -1 ) { return tryPrepend( cItems < 0 ? arr.num() + 1 + cItems : cItems, arr.pointer( first ) ); }
+		inline bool prepend( const TMutArr &arr, SizeType first = 0, DiffType cItems = -1 )
+		{
+			return tryPrepend( arr, first, cItems );
+		}
 		//! \brief  Insert another array to the beginning of this array.
 		//!
 		//! This command will fail if there is not enough memory to hold the new
@@ -1139,7 +1202,11 @@ namespace ax
 		//!
 		//! \param  arr Array view to "prepend."
 		//! \return `true` on success; `false` otherwise.
-		inline bool prepend( const ArrayView &arr ) { return prepend( arr.num(), arr.get() ); }
+		inline bool tryPrepend( const ArrayView &arr ) { return tryPrepend( arr.num(), arr.get() ); }
+		inline bool prepend( const ArrayView &arr )
+		{
+			return tryPrepend( arr.num(), arr.get() );
+		}
 
 		//! \brief  Insert another array into this array.
 		//!
@@ -1153,7 +1220,11 @@ namespace ax
 		//!                this pointer will no longer be valid if the operation
 		//!                succeeds.)
 		//! \return `true` on success; `false` on failure.
-		bool insert( SizeType cItems, const Type *pItems, Type *before );
+		bool tryInsert( SizeType cItems, const Type *pItems, Type *before );
+		inline bool insert( SizeType cItems, const Type *pItems, Type *before )
+		{
+			return tryInsert( cItems, pItems, before );
+		}
 		//! \brief  Insert an element into this array.
 		//!
 		//! This command will fail if there is not enough memory to hold the new
@@ -1167,7 +1238,11 @@ namespace ax
 		//!                this pointer will no longer be valid if the operation
 		//!                succeeds.)
 		//! \return `true` on success; `false` on failure.
-		inline bool insert( const Type &x, Type *before ) { return insert( 1, &x, before ); }
+		inline bool tryInsert( const Type &x, Type *before ) { return tryInsert( 1, &x, before ); }
+		inline bool insert( const Type &x, Type *before )
+		{
+			return tryInsert( 1, &x, before );
+		}
 		//! \brief  Insert another array into this array.
 		//!
 		//! This command will fail if there is not enough memory to hold the new
@@ -1182,7 +1257,12 @@ namespace ax
 		//!                succeeds.)
 		//! \return `true` on success; `false` on failure.
 		template< SizeType tLen >
-		inline bool insert( const Type( &arr )[ tLen ], Type *before ) { return insert( tLen, arr, before ); }
+		inline bool tryInsert( const Type( &arr )[ tLen ], Type *before ) { return tryInsert( tLen, arr, before ); }
+		template< SizeType tLen >
+		inline bool insert( const Type( &arr )[ tLen ], Type *before )
+		{
+			return tryInsert( tLen, arr, before );
+		}
 		//! \brief  Insert another array into this array.
 		//!
 		//! This command will fail if there is not enough memory to hold the new
@@ -1198,7 +1278,11 @@ namespace ax
 		//! \param  first  Index of the first element in `arr` to insert.
 		//! \param  cItems Number of elements from `first` in `arr` to insert.
 		//! \return `true` on success; `false` on failure.
-		inline bool insert( const TMutArr &arr, Type *before, SizeType first = 0, DiffType cItems = -1 ) { return insert( cItems < 0 ? arr.num() + 1 + cItems : cItems, arr.pointer( first ), before ); }
+		inline bool tryInsert( const TMutArr &arr, Type *before, SizeType first = 0, DiffType cItems = -1 ) { return tryInsert( cItems < 0 ? arr.num() + 1 + cItems : cItems, arr.pointer( first ), before ); }
+		inline bool insert( const TMutArr &arr, Type *before, SizeType first = 0, DiffType cItems = -1 )
+		{
+			return tryInsert( arr, before, first, cItems );
+		}
 		//! \brief  Insert another array into this array.
 		//!
 		//! This command will fail if there is not enough memory to hold the new
@@ -1212,7 +1296,11 @@ namespace ax
 		//!                this pointer will no longer be valid if the operation
 		//!                succeeds.)
 		//! \return `true` on success; `false` on failure.
-		inline bool insert( const ArrayView &arr, Type *before ) { return insert( arr.num(), arr.get(), before ); }
+		inline bool tryInsert( const ArrayView &arr, Type *before ) { return tryInsert( arr.num(), arr.get(), before ); }
+		inline bool insert( const ArrayView &arr, Type *before )
+		{
+			return tryInsert( arr.num(), arr.get(), before );
+		}
 
 		//! \brief  Remove a section of this array.
 		//!
@@ -1289,15 +1377,15 @@ namespace ax
 
 		//! \brief  Assign an array view to this array.
 		//!
-		//! See `assign()` for more details. If the assignment fails, then
+		//! See `tryAssign()` for more details. If the assignment fails, then
 		//! `axarr_cxx_error` is used to handle the error. (The error might get
 		//! ignored if not configured properly.)
 		//!
 		//! \param  arr Array to be assigned to this.
 		//! \return `*this`
-		inline TMutArr &operator=( const ArrayView &arr ) { if( !assign( arr ) ) { axarr_cxx_error( AXARR_MSG_FAILEDCOPY ); } return *this; }
+		inline TMutArr &operator=( const ArrayView &arr ) { if( !tryAssign( arr ) ) { axarr_cxx_error( AXARR_MSG_FAILEDCOPY ); } return *this; }
 		//! \copydoc operator=()
-		inline TMutArr &operator=( const TMutArr &arr ) { if( !assign( arr ) ) { axarr_cxx_error( AXARR_MSG_FAILEDCOPY ); } return *this; }
+		inline TMutArr &operator=( const TMutArr &arr ) { if( !tryAssign( arr ) ) { axarr_cxx_error( AXARR_MSG_FAILEDCOPY ); } return *this; }
 #if AXARR_CXX11_MOVE_ENABLED
 		//! \brief  Move another array to this array.
 		//!
@@ -1325,21 +1413,21 @@ namespace ax
 #endif
 		//! \copydoc operator=()
 		template< SizeType tLen >
-		inline TMutArr &operator=( const Type( &arr )[ tLen ] ) { if( !assign( arr ) ) { axarr_cxx_error( AXARR_MSG_FAILEDCOPY ); } return *this; }
+		inline TMutArr &operator=( const Type( &arr )[ tLen ] ) { if( !tryAssign( arr ) ) { axarr_cxx_error( AXARR_MSG_FAILEDCOPY ); } return *this; }
 
 		//! \brief  Append an array to this.
 		//!
-		//! See `append()` for more details. If the append fails, then
+		//! See `tryAppend()` for more details. If the append fails, then
 		//! `axarr_cxx_error` is used to handle the error. (The error might get
 		//! ignored if not configured properly.)
 		//!
 		//! \return `*this`
-		inline TMutArr &operator+=( const ArrayView &arr ) { if( !append( arr ) ) { axarr_cxx_error( AXARR_MSG_FAILEDADD ); } return *this; }
+		inline TMutArr &operator+=( const ArrayView &arr ) { if( !tryAppend( arr ) ) { axarr_cxx_error( AXARR_MSG_FAILEDADD ); } return *this; }
 		//! \copydoc operator+=()
 		template< SizeType tLen >
-		inline TMutArr &operator+=( const Type( &arr )[ tLen ] ) { if( !append( arr ) ) { axarr_cxx_error( AXARR_MSG_FAILEDADD ); } return *this; }
+		inline TMutArr &operator+=( const Type( &arr )[ tLen ] ) { if( !tryAppend( arr ) ) { axarr_cxx_error( AXARR_MSG_FAILEDADD ); } return *this; }
 		//! \copydoc operator+=()
-		inline TMutArr &operator<<( const ArrayView &arr ) { if( !append( arr ) ) { axarr_cxx_error( AXARR_MSG_FAILEDADD ); } return *this; }
+		inline TMutArr &operator<<( const ArrayView &arr ) { if( !tryAppend( arr ) ) { axarr_cxx_error( AXARR_MSG_FAILEDADD ); } return *this; }
 
 		//! \brief  Retrieve a reference to the element at the given index.
 		//!
@@ -1641,7 +1729,7 @@ namespace ax
 	, m_pArr( NULL )
 	, m_cGranularity( arr.m_cGranularity )
 	{
-		if( !append( arr ) ) {
+		if( !tryAppend( arr ) ) {
 			axarr_cxx_error( AXARR_MSG_FAILEDINIT );
 		}
 	}
@@ -1652,7 +1740,7 @@ namespace ax
 	, m_pArr( NULL )
 	, m_cGranularity( kDefaultGranularity )
 	{
-		if( !append( arr ) ) {
+		if( !tryAppend( arr ) ) {
 			axarr_cxx_error( AXARR_MSG_FAILEDINIT );
 		}
 	}
@@ -1663,7 +1751,7 @@ namespace ax
 	, m_pArr( NULL )
 	, m_cGranularity( kDefaultGranularity )
 	{
-		if( !append( cItems, pItems ) ) {
+		if( !tryAppend( cItems, pItems ) ) {
 			axarr_cxx_error( AXARR_MSG_FAILEDINIT );
 		}
 	}
@@ -1778,7 +1866,7 @@ namespace ax
 	}
 
 	template< typename TElement, typename TAllocator >
-	inline bool TMutArr< TElement, TAllocator >::assign( SizeType cItems, const Type *pItems )
+	inline bool TMutArr< TElement, TAllocator >::tryAssign( SizeType cItems, const Type *pItems )
 	{
 		if( ( cItems > 0 && !pItems ) || !reserve( cItems ) ) {
 			return false;
@@ -1805,7 +1893,7 @@ namespace ax
 		return true;
 	}
 	template< typename TElement, typename TAllocator >
-	inline bool TMutArr< TElement, TAllocator >::append( SizeType cItems, const Type *pItems )
+	inline bool TMutArr< TElement, TAllocator >::tryAppend( SizeType cItems, const Type *pItems )
 	{
 		if( ( cItems > 0 && !pItems ) || !reserve( m_cArr + cItems ) ) {
 			return false;
@@ -1823,16 +1911,16 @@ namespace ax
 		return true;
 	}
 	template< typename TElement, typename TAllocator >
-	inline bool TMutArr< TElement, TAllocator >::prepend( SizeType cItems, const Type *pItems )
+	inline bool TMutArr< TElement, TAllocator >::tryPrepend( SizeType cItems, const Type *pItems )
 	{
 		if( !m_cArr ) {
-			return append( cItems, pItems );
+			return tryAppend( cItems, pItems );
 		}
 
-		return insert( cItems, pItems, m_pArr );
+		return tryInsert( cItems, pItems, m_pArr );
 	}
 	template< typename TElement, typename TAllocator >
-	inline bool TMutArr< TElement, TAllocator >::insert( SizeType cItems, const Type *pItems, Type *pBefore )
+	inline bool TMutArr< TElement, TAllocator >::tryInsert( SizeType cItems, const Type *pItems, Type *pBefore )
 	{
 		const SizeType cBefore = index( pBefore );
 		if( cBefore > m_cArr || !pItems || !reserve( m_cArr + cItems ) ) {
