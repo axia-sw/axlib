@@ -197,6 +197,7 @@
 #define AX_MSC_2013                 ( AX_MSC_VER >= 180 )
 #define AX_MSC_2013_CTP             ( AX_MSC_VER >= 181 ) // TODO
 #define AX_MSC_2015                 ( AX_MSC_VER >= 190 )
+#define AX_MSC_2017                 ( AX_MSC_VER >= 200 )
 
 #define AX_COMPILER_CLANG           ( AX_CLANG_VER > 0 )
 #define AX_COMPILER_GCC             ( AX_GCC_VER > 0 )
@@ -1204,7 +1205,7 @@
 #endif
 
 #ifndef AX_PRINTF_PARM
-# if AX_MSC_2010
+# if AX_MSC_2010 && !AX_MSC_2015
 #  include <CodeAnalysis/sourceannotations.h>
 #  define AX_PRINTF_PARM            [SA_FormatString(Style="printf")]
 # else
