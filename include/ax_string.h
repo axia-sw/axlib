@@ -3866,6 +3866,7 @@ AXSTR_FUNC char *AXSTR_CALL axstr_from_float_x( char *pszDstBuf, axstr_size_t cD
 	maxDigits = maxTrailingDigits > kMaxDigitsBuf ? kMaxDigitsBuf : maxTrailingDigits;
 
 	whole = (axstr_sint_t)value;
+	fract = 0;
 
 	f = value - (axstr_real_t)whole;
 	while( f > (axstr_real_t)0.0 ) {
