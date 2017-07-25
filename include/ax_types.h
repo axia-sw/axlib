@@ -357,7 +357,7 @@ namespace ax
 	typedef ax_uint_t               UCPU, UIntCPU;
 
     typedef ax_size_t               SizeType;
-    typedef ax_ptrdiff_t            PtrDiffType;
+    typedef ax_ptrdiff_t            DiffType, PtrDiffType;
 
 #if AX_TYPES_CXX_NULLPTR_ENABLED
 	typedef decltype(nullptr)       NullPtr;
