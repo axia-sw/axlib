@@ -1386,12 +1386,11 @@ namespace ax
 		inline TMutArr &operator=( const ArrayView &arr ) { if( !tryAssign( arr ) ) { axarr_cxx_error( AXARR_MSG_FAILEDCOPY ); } return *this; }
 		//! \copydoc operator=()
 		inline TMutArr &operator=( const TMutArr &arr ) { if( !tryAssign( arr ) ) { axarr_cxx_error( AXARR_MSG_FAILEDCOPY ); } return *this; }
-#if AXARR_CXX11_MOVE_ENABLED
-		//! \brief  Move another array to this array.
+		//! \brief  Swap another array with this array.
 		//!
 		//! \param  x Array to be swapped with this.
 		//! \return `*this`
-		inline TMutArr &operator=( TMutArr &&x )
+		inline TMutArr &swap( TMutArr &x )
 		{
 			const axarr_size_t cArr = m_cArr;
 			const axarr_size_t cMax = m_cAllocedBytes;
@@ -1409,6 +1408,15 @@ namespace ax
 			x.m_cGranularity  = cGra;
 
 			return *this;
+		}
+#if AXARR_CXX11_MOVE_ENABLED
+		//! \brief  Move another array to this array.
+		//!
+		//! \param  x Array to be swapped with this.
+		//! \return `*this`
+		inline TMutArr &operator=( TMutArr &&x )
+		{
+			return swap( x );
 		}
 #endif
 		//! \copydoc operator=()
