@@ -76,7 +76,7 @@ namespace ax
 	template<> struct TIsInt< int32 >: public TTrue {};
 	/// Specialization of TIsInt for int64
 	template<> struct TIsInt< int64 >: public TTrue {};
-#ifndef _LP64
+#if !defined(_LP64) || defined(__APPLE__)
 	/// Specialization of TIsInt for signed long
 	template<> struct TIsInt< signed long >: public TTrue {};
 	/// Specialization of TIsInt for unsigned long
