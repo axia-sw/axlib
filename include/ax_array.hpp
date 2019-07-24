@@ -1507,6 +1507,21 @@ namespace ax
 		{
 			return view().contains( x );
 		}
+		//! \brief If it exists, `delete` the last member of the array and
+		//!        remove it.
+		inline void deleteLast() {
+			if( m_cArr > 0 ) {
+				delete m_pArr[ m_cArr - 1 ];
+				--m_cArr;
+			}
+		}
+		//! \brief `delete` every member of the array in reverse order, clearing
+		//         the array in the process.
+		inline void deleteAll() {
+			while( m_cArr > 0 ) {
+				delete m_pArr[ --m_cArr ];
+			}
+		}
 
 	private:
 		// If set on `m_cGranularity`, then growing the array is disabled.
