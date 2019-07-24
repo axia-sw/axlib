@@ -50,7 +50,7 @@ typedef size_t axls_size_t;
 #endif
 
 #ifndef axls_alloc
-# include <cstdlib>
+# include <stdlib.h>
 # define axls_alloc(N_)				(malloc((N_)))
 # define axls_free(P_)				(free((P_)))
 #endif
