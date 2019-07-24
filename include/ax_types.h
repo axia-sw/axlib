@@ -1,4 +1,4 @@
-﻿/*
+/*
 
 	ax_types - public domain
 	Last update: 2015-10-01 Aaron Miller
@@ -281,11 +281,7 @@ typedef ax_u32_t                    ax_uint_t;
 #endif
 
 #ifndef AX_NO_STDDEF_H
-# if defined(__cplusplus) && AX_TYPES_CXX_ENABLED!=0
-#  include <cstddef>
-# else
-#  include <stddef.h>
-# endif
+# include <stddef.h>
 typedef size_t ax_size_t;
 typedef ptrdiff_t ax_ptrdiff_t;
 #else
