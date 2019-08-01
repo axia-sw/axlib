@@ -1,6 +1,9 @@
 #pragma once
 
-#include "axlib.hpp"
+#include "ax_platform.h"
+#include "ax_types.h"
+
+#include "ax_assert.h"
 
 #define AX_DICT_ALPHALOWER "a-z"
 #define AX_DICT_ALPHAUPPER "A-Z"
