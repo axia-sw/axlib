@@ -70,15 +70,43 @@
  */
 
 #ifdef AX_IMPLEMENTATION
-# define AXASSERT_IMPLEMENTATION
-# define   AXCONF_IMPLEMENTATION
-# define  AXFIBER_IMPLEMENTATION
-# define    AXLOG_IMPLEMENTATION
-# define     AXMM_IMPLEMENTATION
-# define AXPRINTF_IMPLEMENTATION
-# define    AXSTR_IMPLEMENTATION
-# define AXTHREAD_IMPLEMENTATION
-# define   AXTIME_IMPLEMENTATION
+
+# ifndef AXLIB_NO_ASSERT
+#  define AXASSERT_IMPLEMENTATION
+# endif
+
+# ifndef AXLIB_NO_CONF
+#  define   AXCONF_IMPLEMENTATION
+#endif
+
+# ifndef AXLIB_NO_FIBER
+#  define  AXFIBER_IMPLEMENTATION
+# endif
+
+# ifndef AXLIB_NO_LOG
+#  define    AXLOG_IMPLEMENTATION
+# endif
+
+# ifndef AXLIB_NO_MM
+#  define     AXMM_IMPLEMENTATION
+# endif
+
+# ifndef AXLIB_NO_PRINTF
+#  define AXPRINTF_IMPLEMENTATION
+# endif
+
+# ifndef AXLIB_NO_STR
+#  define    AXSTR_IMPLEMENTATION
+# endif
+
+# ifndef AXLIB_NO_THREAD
+#  define AXTHREAD_IMPLEMENTATION
+# endif
+
+# ifndef AXLIB_NO_TIME
+#  define   AXTIME_IMPLEMENTATION
+# endif
+
 #endif
 
 /* These libraries are commonly used by others, so include first */
