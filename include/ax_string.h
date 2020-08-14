@@ -1,4 +1,4 @@
-﻿/*
+/*
 
 	ax_string - public domain
 	Last update: 2015-09-30 Aaron Miller
@@ -4726,7 +4726,7 @@ namespace ax
 		 *  \return `-1` if not found, or the zero-based index to the byte. */
 		inline DiffType find( char ch, DiffType iAfter = -1 ) const
 		{
-			if( !m_pStr || !m_cStr || iAfter < -1 ) {
+			if( !m_pStr || !m_cStr || iAfter < -1 || iAfter >= (DiffType)m_cStr ) {
 				return -1;
 			}
 
@@ -10030,7 +10030,7 @@ namespace ax
 
 		SizeType index = 0;
 		bool bInQuote = false;
-		const SizeType n = keepQuotes == EKeepQuotes::Yes ? 1 : 0;
+		const SizeType n = keepQuotes == EKeepQuotes::No ? 1 : 0;
 		for( SizeType p = 0; p <= myLen; ++p ) {
 			// Handle escapes
 			if( escLen > 0 && mid( p, escLen ) == inEscape ) {
@@ -10042,7 +10042,8 @@ namespace ax
 			// Handle the separator
 			if( ( mid( p, sepLen ) == inSeparator && !bInQuote ) || p == myLen ) {
 				if( keepEmpty == EKeepEmpty::Yes || p != index ) {
-					if( !ArrayOps::pushBack( outArray, substr( index, p ) ) ) {
+					const SizeType nn = bInQuote ? n : 0;
+					if( !ArrayOps::pushBack( outArray, substr( index + nn, p ) ) ) {
 						return false;
 					}
 				}
@@ -10054,7 +10055,7 @@ namespace ax
 
 			// Handle quotes
 			if( mid( p, 1 ) == '\"' ) {
-				bInQuote ^= true;
+				bInQuote = !bInQuote;
 				if( bInQuote ) {
 					continue;
 				}
