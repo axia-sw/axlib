@@ -4092,6 +4092,56 @@ AXSTR_FUNC axstr_utf32_t AXSTR_CALL axstr_zentohan_ch( axstr_utf32_t UTF32Char )
 ;
 #endif
 
+/*!
+ * \brief Check whether a character is zero-width or not.
+ */
+AXSTR_FUNC axstr_bool_t AXSTR_CALL axstr_is_zerowidth_ch( axstr_utf32_t codepoint )
+#if AXSTR_IMPLEMENT
+{
+	if( ( codepoint >= 0x200B && codepoint <= 0x200D ) || codepoint == 0x2060 || codepoint == 0xFEFF ) {
+		return (axstr_bool_t)( 1 );
+	}
+
+	return (axstr_bool_t)( 0 );
+}
+#else
+;
+#endif
+
+/*!
+ * \brief Check whether a character is full-width or not.
+ */
+AXSTR_FUNC axstr_bool_t AXSTR_CALL axstr_is_fullwidth_ch( axstr_utf32_t codepoint )
+#if AXSTR_IMPLEMENT
+{
+	axstr_utf32_t x;
+
+	x = axstr_zentohan_ch( codepoint );
+	if( x != codepoint ) {
+		return (axstr_bool_t)( 1 );
+	}
+
+	return (axstr_bool_t)( 0 );
+}
+#else
+;
+#endif
+/*!
+ * \brief Check whether a character is half-width or not.
+ */
+AXSTR_FUNC axstr_bool_t AXSTR_CALL axstr_is_halfwidth_ch( axstr_utf32_t codepoint )
+#if AXSTR_IMPLEMENT
+{
+	if( !axstr_is_fullwidth_ch( codepoint ) && !axstr_is_zerowidth_ch( codepoint ) ) {
+		return (axstr_bool_t)( 1 );
+	}
+
+	return (axstr_bool_t)( 0 );
+}
+#else
+;
+#endif
+
 /*
 ===============================================================================
 
