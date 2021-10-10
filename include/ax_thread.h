@@ -2,7 +2,7 @@
 
 
 	ax_thread - public domain
-	Last update: 2017-04-09 NotKyon
+	Last update: 2021-10-10 NotKyon
 
 
 	This library provides atomic operations, threading synchronization and
@@ -119,13 +119,27 @@
 # endif
 #endif
 
+#ifndef AXTHREAD_UNUSED
+# if defined(__GNUC__) || defined(__clang__)
+#  define AXTHREAD_UNUSED           __attribute__((unused))
+# elif defined(__cplusplus)
+#  if __cplusplus >= 201703
+#   define AXTHREAD_UNUSED          [[maybe_unused]]
+#  else
+#   define AXTHREAD_UNUSED
+#  endif
+# else
+#  define AXTHREAD_UNUSED
+# endif
+#endif
+
 #ifndef AXTHREAD_INLINE
 # ifdef AX_FORCEINLINE
-#  define AXTHREAD_INLINE           AX_FORCEINLINE
+#  define AXTHREAD_INLINE           AXTHREAD_UNUSED AX_FORCEINLINE
 # elif AXTHREAD_CXX_ENABLED
-#  define AXTHREAD_INLINE           inline
+#  define AXTHREAD_INLINE           AXTHREAD_UNUSED inline
 # else
-#  define AXTHREAD_INLINE           static
+#  define AXTHREAD_INLINE           AXTHREAD_UNUSED static
 # endif
 #endif
 
@@ -286,6 +300,11 @@ Architecture
 #  elif defined( __x86__ ) || defined( __i386__ ) || defined( _M_IX86 )
 #   undef AXTHREAD_ARCH_X86
 #   define AXTHREAD_ARCH_X86        1
+#  elif defined( __aarch64__ )
+#   undef AXTHREAD_ARCH_ARM
+#   undef AXTHREAD_ARCH_64BIT
+#   define AXTHREAD_ARCH_ARM        1
+#   define AXTHREAD_ARCH_64BIT      1
 #  elif defined( __arm__ )
 #   undef AXTHREAD_ARCH_ARM
 #   define AXTHREAD_ARCH_ARM        1
@@ -375,6 +394,14 @@ Threading Model
 # include <mach/mach_time.h>
 # include <mach/task.h>
 # include <mach/semaphore.h>
+#endif
+
+#if AXTHREAD_IMPLEMENT
+# if AXTHREAD_OS_MACOSX
+#  include <mach/mach_time.h>
+#  include <sys/sysctl.h>
+#  include <sys/types.h>
+# endif
 #endif
 
 
@@ -1773,13 +1800,19 @@ namespace ax
 #  if ( defined( _MSC_VER ) && _MSC_VER >= 1300 ) || defined( __INTEL_COMPILER )
 #   pragma intrinsic( _mm_pause )
 #   define AX_CPU_PAUSE() _mm_pause()
+#  elif defined( _MSC_VER ) && _MSC_VER < 1300
+#   define AX_CPU_PAUSE() _asm pause
 #  elif ( defined( __GNUC__ ) || defined( __clang__ ) )
-#   define AX_CPU_PAUSE() __asm__ __volatile__( "pause;" )
+#   define AX_CPU_PAUSE() __asm__ __volatile__( "pause" )
 #  else
-#   error Could not determine how to define AX_CPU_PAUSE() [x86/x64]
+#   pragma warning "ax_thread: AX_CPU_PAUSE() defined to no-op"
+#   define AX_CPU_PAUSE() ((void)0)
 #  endif
+# elif AXTHREAD_ARCH_ARM
+#  define AX_CPU_PAUSE() __asm__ __volatile__( "yield" )
 # else
-#  error Could not determine how to define AX_CPU_PAUSE()
+#  pragma warning "ax_thread: AX_CPU_PAUSE() defined to no-op"
+#  define AX_CPU_PAUSE() ((void)0)
 # endif
 #endif
 
@@ -1787,6 +1820,7 @@ namespace ax
 
 # if !AXTHREAD_OS_WINDOWS
 #  include <time.h> /* needed for appropriate timeout for interrupted events */
+#  include <errno.h> /* needed for ETIMEDOUT */
 #  include <sched.h> /* for sched_yield() call in axth_yield() */
 #  include <unistd.h>
 #  include <sys/wait.h>
@@ -1839,7 +1873,7 @@ static void axth__x86_cpuid( axth_u32_t *pCPUInfo, axth_u32_t uFunc, axth_u32_t 
 #  endif
 }
 
-static int axth__x86_streq12( const char *a, const char *b )
+AXTHREAD_UNUSED static int axth__x86_streq12( const char *a, const char *b )
 {
 	const axth_u32_t *p, *q;
 
@@ -2015,6 +2049,56 @@ AXTHREAD_INLINE int axth__x86_AMD3DNOW( void )          { return axth__x86_is_am
 
 AXTHREAD__ENTER_C
 
+#if AXTHREAD_IMPLEMENT
+
+# if AXTHREAD_OS_MACOSX
+
+static int axth__sysctl_getIntByName( const char *name ) {
+	size_t retlen;
+	int ret;
+
+	ret = 0;
+	retlen = sizeof(ret);
+
+	if( sysctlbyname( name, &ret, &retlen, NULL, 0 ) != 0 ) {
+		return 0;
+	}
+
+	return ret;
+}
+static int axth__min1( int n ) {
+	return n >= 1 ? n : 1;
+}
+
+static const char *axth__sysctl_getStringByName( const char *name, char *buf, size_t maxlen ) {
+	size_t len;
+
+	buf[ 0 ] = '\0';
+	len = maxlen - 1;
+
+	do {
+		if( maxlen < 2 ) {
+			break;
+		}
+
+		if( sysctlbyname( name, (void*)&buf[0], &len, (void*)0, 0 ) != 0 ) {
+			break;
+		}
+
+		if( len >= maxlen ) {
+			len = maxlen - 1;
+		}
+
+		buf[ len ] = '\0';
+	} while(0);
+
+	return &buf[0];
+}
+
+# endif /*AXTHREAD_OS_MACOSX*/
+
+#endif /*AXTHREAD_IMPLEMENT*/
+
 AXTHREAD_FUNC int AXTHREAD_CALL axth_has_hyperthreading( void )
 #if AXTHREAD_IMPLEMENT
 {
@@ -2031,7 +2115,15 @@ AXTHREAD_FUNC int AXTHREAD_CALL axth_has_hyperthreading( void )
 AXTHREAD_FUNC const char *AXTHREAD_CALL axth_get_cpu_vendor( void )
 #if AXTHREAD_IMPLEMENT
 {
-# if AXTHREAD_ARCH_X86
+# if AXTHREAD_OS_MACOSX
+	static char buf[ 64 ] = { '\0' };
+	
+	if( buf[0] == '\0' ) {
+		(void)axth__sysctl_getStringByName( "machdep.cpu.vendor", &buf[0], sizeof(buf) );
+	}
+	
+	return &buf[0];
+# elif AXTHREAD_ARCH_X86
 	return axth__x86_info()->szVendor;
 # else
 #  error Could not determine how to implement axth_get_cpu_vendor()
@@ -2043,7 +2135,15 @@ AXTHREAD_FUNC const char *AXTHREAD_CALL axth_get_cpu_vendor( void )
 AXTHREAD_FUNC const char *AXTHREAD_CALL axth_get_cpu_brand( void )
 #if AXTHREAD_IMPLEMENT
 {
-# if AXTHREAD_ARCH_X86
+# if AXTHREAD_OS_MACOSX
+	static char buf[ 128 ] = { '\0' };
+	
+	if( buf[0] == '\0' ) {
+		(void)axth__sysctl_getStringByName( "machdep.cpu.brand_string", &buf[0], sizeof(buf) );
+	}
+
+	return &buf[0];
+# elif AXTHREAD_ARCH_X86
 	return axth__x86_info()->szBrand;
 # else
 #  error Could not determine how to implement axth_get_cpu_brand()
@@ -2070,8 +2170,13 @@ AXTHREAD_FUNC axth_u32_t AXTHREAD_CALL axth_count_cpu_cores( void )
 
 		return ( axth_u32_t )count;
 # elif AXTHREAD_OS_MACOSX
-		/* TODO! */
-		return 1;
+		static int count = 0;
+
+		if( count == 0 ) {
+			count = axth__min1( axth__sysctl_getIntByName( "hw.physicalcpu" ) );
+		}
+
+		return count;
 # else
 #  error Could not determine how to implement axth_count_cpu_cores()
 # endif
@@ -2082,7 +2187,17 @@ AXTHREAD_FUNC axth_u32_t AXTHREAD_CALL axth_count_cpu_cores( void )
 AXTHREAD_FUNC axth_u32_t AXTHREAD_CALL axth_count_cpu_threads( void )
 #if AXTHREAD_IMPLEMENT
 {
+# if AXTHREAD_OS_MACOSX
+		static int count = 0;
+
+		if( count == 0 ) {
+			count = axth__min1( axth__sysctl_getIntByName( "hw.logicalcpu" ) );
+		}
+
+		return count;
+# else
 	return axth_count_cpu_cores()*( 1 + axth_has_hyperthreading() );
+# endif
 }
 #else
 ;
@@ -2104,6 +2219,35 @@ AXTHREAD_FUNC axth_u64_t AXTHREAD_CALL axth_get_cpu_cycles( void )
 	__asm__ __volatile__( "rdtsc" : "=a" (lo), "=d" (hi) );
 
 	return (((axth_u64_t)hi)<<32)|((axth_u64_t)lo);
+#  elif AXTHREAD_OS_MACOSX
+	return (axth_u64_t)mach_absolute_time();
+#  elif AXTHREAD_ARCH_ARM
+	axth_u64_t cycles;
+
+	cycles = 0;
+#   if AXTHREAD_ARCH_64BIT
+	__asm__ __volatile__( "mrs %0, cntvct_el0" : "=r" (cycles) );
+#   else
+	do {
+		axth_u32_t pmccntr, pmuseren, pmcntenset;
+
+		__asm__ __volatile__( "mrc p15, 0, %0, c9, c14, 0" : "=r" (pmuseren) );
+		if( ~pmuseren & 1 ) {
+			break;
+		}
+
+		__asm__ __volatile__( "mrc p15, 0, %0, c9, c12, 1" : "=r" (pmcntenset) );
+		if( ~( pmcntenset >> 31 ) & 1 ) {
+			break;
+		}
+
+		__asm__ __volatile__( "mrc p15, 0, %0, c9, c13, 0" : "=r" (pmccntr) );
+
+		cycles = ((axth_u64_t)pmccntr) * 64;
+	} while(0);
+#   endif
+
+	return cycles;
 #  else
 #   error Could not determine how to implement axth_get_cpu_cycles() for GCC/ARM
 #  endif
@@ -2365,6 +2509,7 @@ typedef struct axthread_s
 	int iExitValue;
 	axth_fn_thread_t pfnThread;
 	void *parm;
+	char *pszName;
 } axthread_t;
 
 #if AXTHREAD_MODEL_WINDOWS
@@ -2376,6 +2521,77 @@ typedef struct axthread_s
 #endif
 
 #if AXTHREAD_IMPLEMENT
+# if AXTHREAD_OS_MACOSX && defined(__OBJC__)
+#  import <Foundation/Foundation.h>
+# endif
+# if AXTHREAD_OS_LINUX
+#  include <sys/prctl.h>
+# endif
+# if AXTHREAD_OS_WINDOWS
+#  define AXTHREAD__NO_NAME_COPY 1
+static void axth__win32_setThreadName( axthread_t *p, const char *pszName )
+{
+# if defined( _MSC_VER ) || defined( __INTEL_COMPILER )
+#  pragma pack(push,8)
+	struct {
+		DWORD dwType;     /* must be 0x1000 */
+		LPCSTR szName;    /* pointer to name (in user address space) */
+		DWORD dwThreadID; /* thread identifier (-1 for caller thread) */
+		DWORD dwFlags;    /* zero */
+	} threadnameInfo;
+#  pragma pack(pop)
+
+	threadnameInfo.dwType = 0x1000;
+	threadnameInfo.szName = pszName;
+	threadnameInfo.dwThreadID = p->dwThreadId;
+	threadnameInfo.dwFlags = 0;
+
+#  ifndef AXTHREAD__EXCEPTION_SET_NAME
+#   define AXTHREAD__EXCEPTION_SET_NAME 0x406D1388
+#  endif
+
+	__try {
+		RaiseException( AXTHREAD__EXCEPTION_SET_NAME, 0, sizeof( threadnameInfo )/sizeof( ULONG_PTR ), ( ULONG_PTR * )&threadnameInfo );
+	} __except( GetExceptionCode()==AXTHREAD__EXCEPTION_SET_NAME ? EXCEPTION_EXECUTE_HANDLER  : EXCEPTION_CONTINUE_SEARCH ) {
+		// "Empty _except block" warning
+		do {
+			break;
+		} while( 0 );
+	}
+# endif
+
+	((void)p);
+	((void)pszName);
+}
+# endif
+static void axth__setCurrentThreadName( axthread_t *pThread, const char *pszName )
+{
+# if AXTHREAD_OS_WINDOWS
+	axth__win32_setThreadName( pThread, pszName );
+# elif AXTHREAD_MODEL_PTHREAD
+#  if AXTHREAD_OS_MACOSX
+#   ifdef __OBJC__
+	[[NSThread currentThread] setName:[NSString stringWithUTF8Encoding:pszName]];
+#   endif
+#  endif
+#  if AXTHREAD_OS_LINUX
+	union {
+		const char *p;
+		unsigned long l;
+	} x;
+
+	x.p = pszName;
+	prctl( PR_SET_NAME, x.l, 0, 0, 0 );
+#  endif
+	pthread_setname_np( pszName );
+# else
+#  pragma warning "ax_thread: Could not determine how to set current thread's name"
+# endif
+
+	((void)pThread);
+	((void)pszName);
+}
+
 static axthread_return_t AXTHREAD_ASYNCCALL axth__thread_f( void *p_ )
 {
 	axthread_t *p;
@@ -2387,6 +2603,11 @@ static axthread_return_t AXTHREAD_ASYNCCALL axth__thread_f( void *p_ )
 	AX_MEMORY_BARRIER();
 # endif
 
+	if( p->pszName != (char *)0 ) {
+		axth__setCurrentThreadName( p, p->pszName );
+		p->pszName[0] = '\0';
+	}
+
 	p->iExitValue = p->pfnThread( p, p->parm );
 	AX_MEMORY_BARRIER();
 	p->iTerminate |= 2;
@@ -2395,13 +2616,52 @@ static axthread_return_t AXTHREAD_ASYNCCALL axth__thread_f( void *p_ )
 }
 #endif
 
-AXTHREAD_FUNC axthread_t *AXTHREAD_CALL axthread_init( axthread_t *p, axth_fn_thread_t routine, void *parm )
+AXTHREAD_FUNC axthread_t *AXTHREAD_CALL axthread_init_named( axthread_t *p, const char *name, axth_fn_thread_t routine, void *parm )
 #if AXTHREAD_IMPLEMENT
 {
+# ifndef AXTHREAD__NO_NAME_COPY
+	static const axth_u32_t perNameLen = 256;
+	static char szNameBuf[ 2048 ] = { '\0' };
+	static axth_u32_t nameIndex = 0;
+# endif
+
 	p->iTerminate = 0;
 	p->iExitValue = 0;
 	p->pfnThread = routine;
 	p->parm = parm;
+	p->pszName = (char *)0;
+
+# ifndef AXTHREAD__NO_NAME_COPY
+	/*
+
+		NOTE: A copy of the name is created in case the code creating the thread
+		`     does not stick around long enough for the thread's function to
+		`     run. It's the thread's internal function that sets the name, since
+		`     not all platforms are able to set the thread's name after it's
+		`     been created. (Namely, pthread_setname_np does not take a thread
+		`     parameter.)
+
+	*/
+
+	if( name != (const char *)0 ) {
+		axth_u32_t index;
+		const char *pszSrc;
+		char *pszDst;
+		
+		index = AX_ATOMIC_FETCH_ADD_FULL32( &nameIndex, perNameLen ) % sizeof(szNameBuf);
+		p->pszName = &szNameBuf[ index ];
+
+		pszSrc = name;
+		pszDst = p->pszName;
+		
+		index = 0;
+		while( pszSrc[index] != '\0' && index + 1 < perNameLen ) {
+			pszDst[index] = pszSrc[index];
+			++index;
+		}
+		pszDst[index] = '\0';
+	}
+# endif
 
 	AX_MEMORY_BARRIER();
 
@@ -2410,6 +2670,8 @@ AXTHREAD_FUNC axthread_t *AXTHREAD_CALL axthread_init( axthread_t *p, axth_fn_th
 	if( !p->hThread ) {
 		return ( axthread_t * )0;
 	}
+
+	axth__win32_setThreadName( p, name );
 # elif AXTHREAD_MODEL_PTHREAD
 	p->threadId = 0;
 	AX_MEMORY_BARRIER();
@@ -2422,6 +2684,14 @@ AXTHREAD_FUNC axthread_t *AXTHREAD_CALL axthread_init( axthread_t *p, axth_fn_th
 # endif
 
 	return p;
+}
+#else
+;
+#endif
+AXTHREAD_FUNC axthread_t *AXTHREAD_CALL axthread_init( axthread_t *p, axth_fn_thread_t routine, void *parm )
+#if AXTHREAD_IMPLEMENT
+{
+	return axthread_init_named( p, (const char *)0, routine, parm );
 }
 #else
 ;
@@ -2545,33 +2815,8 @@ AXTHREAD_FUNC axth_thread_priority_t AXTHREAD_CALL axthread_set_priority( axthre
 AXTHREAD_FUNC void AXTHREAD_CALL axthread_set_name( axthread_t *p, const char *pszName )
 #if AXTHREAD_IMPLEMENT
 {
-# if defined( _MSC_VER ) || defined( __INTEL_COMPILER )
-#  pragma pack(push,8)
-	struct {
-		DWORD dwType;     /* must be 0x1000 */
-		LPCSTR szName;    /* pointer to name (in user address space) */
-		DWORD dwThreadID; /* thread identifier (-1 for caller thread) */
-		DWORD dwFlags;    /* zero */
-	} threadnameInfo;
-#  pragma pack(pop)
-
-	threadnameInfo.dwType = 0x1000;
-	threadnameInfo.szName = pszName;
-	threadnameInfo.dwThreadID = p->dwThreadId;
-	threadnameInfo.dwFlags = 0;
-
-#  ifndef AXTHREAD__EXCEPTION_SET_NAME
-#   define AXTHREAD__EXCEPTION_SET_NAME 0x406D1388
-#  endif
-
-	__try {
-		RaiseException( AXTHREAD__EXCEPTION_SET_NAME, 0, sizeof( threadnameInfo )/sizeof( ULONG_PTR ), ( ULONG_PTR * )&threadnameInfo );
-	} __except( GetExceptionCode()==AXTHREAD__EXCEPTION_SET_NAME ? EXCEPTION_EXECUTE_HANDLER  : EXCEPTION_CONTINUE_SEARCH ) {
-		// "Empty _except block" warning
-		do {
-			break;
-		} while( 0 );
-	}
+# if AXTHREAD_OS_WINDOWS
+	axth__win32_setThreadName( p, pszName );
 # else
 	( void )p;
 	( void )pszName;
