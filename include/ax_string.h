@@ -4142,6 +4142,101 @@ AXSTR_FUNC axstr_bool_t AXSTR_CALL axstr_is_halfwidth_ch( axstr_utf32_t codepoin
 ;
 #endif
 
+
+/*
+===============================================================================
+
+	STRING HASHING
+
+===============================================================================
+*/
+
+#ifndef AXSTR_MURMUR3_DEFAULT_SEED
+# define AXSTR_MURMUR3_DEFAULT_SEED 0x734C825D
+#endif
+
+#if AXSTR_IMPLEMENT
+/*! \internal */
+static unsigned int axstr__murmur3_scramble( unsigned int k ) {
+	k *= 0xCC9E2D51;
+	k  = (k << 15) | (k >> 17);
+	k *= 0x1b873593;
+
+	return k;
+}
+#endif
+
+/*!
+ * \brief Calculate the murmur3 hash of a substring using the given seed as a base.
+ */
+AXSTR_FUNC unsigned int AXSTR_CALL axstr_murmur3_ranged_seeded( const char *s, const char *e, unsigned int seed )
+#if AXSTR_IMPLEMENT
+{
+	unsigned int h, k;
+	axstr_size_t i, len;
+
+	if( e == (const char *)0 ) {
+		e = axstr_findchr( s, (axstr_utf32_t)'\0' );
+	}
+
+	len = (size_t)(ptrdiff_t)( e - s );
+	h = seed;
+
+	for( i = len/4; i != 0; --i ) {
+		k =
+			( ( (unsigned int)(unsigned char)s[0] ) << 24 ) |
+			( ( (unsigned int)(unsigned char)s[1] ) << 16 ) |
+			( ( (unsigned int)(unsigned char)s[2] ) <<  8 ) |
+			( ( (unsigned int)(unsigned char)s[3] ) <<  0 );
+
+		s += 4;
+
+		h ^= axstr__murmur3_scramble( k );
+		h  = ( h << 13 ) | ( h >> 19 );
+		h  = h*5 + 0xE6546B64;
+	}
+
+	k = 0;
+	while( s != e ) {
+		k <<= 8;
+		k  |= *s;
+
+		s += 1;
+	}
+
+	h ^= axstr__murmur3_scramble( k );
+
+	h ^= len;
+	h ^= h >> 16;
+	h *= 0x85EBCA6B;
+	h ^= h >> 13;
+	h *= 0xC2B2AE35;
+	h ^= h >> 16;
+
+	return h;
+}
+#else
+;
+#endif
+
+AXSTR_FUNC unsigned int AXSTR_CALL axstr_murmur3_ranged( const char *s, const char *e )
+#if AXSTR_IMPLEMENT
+{
+	return axstr_murmur3_ranged_seeded( s, e, AXSTR_MURMUR3_DEFAULT_SEED );
+}
+#else
+;
+#endif
+
+AXSTR_FUNC unsigned int AXSTR_CALL axstr_murmur3_psz( const char *s )
+#if AXSTR_IMPLEMENT
+{
+	return axstr_murmur3_ranged_seeded( s, (const char *)0, AXSTR_MURMUR3_DEFAULT_SEED );
+}
+#else
+;
+#endif
+
 /*
 ===============================================================================
 
@@ -4543,6 +4638,11 @@ template< axstr_size_t tDstSize >
 inline char *axstr_from_float( AXSTR_OUT_Z(tDstSize) char( &pszDstBuf )[ tDstSize ], axstr_real_t value )
 {
 	return axstr_from_float( pszDstBuf, tDstSize, value );
+}
+
+inline unsigned int axstr_murmur3( const char *s, const char *e = (const char *)0, unsigned int seed = AXSTR_MURMUR3_DEFAULT_SEED )
+{
+	return axstr_murmur3_ranged_seeded( s, e, seed );
 }
 #endif /* AXSTR_CXX_OVERLOADS_ENABLED */
 
@@ -6227,6 +6327,12 @@ namespace ax
 		bool replaceTo( TMutStr< Allocator > &dst, Str searchFor, Str replaceWith ) const;
 		TMutStr<> replaced( Str searchFor, Str replaceWith ) const;
 
+		/*! \brief Calculate the murmur3 hash of this string. */
+		inline unsigned int murmur3() const
+		{
+			return axstr_murmur3_ranged_seeded( m_pStr, m_pStr + m_cStr, AXSTR_MURMUR3_DEFAULT_SEED );
+		}
+
 		inline const char *pointer( DiffType index = 0 ) const
 		{
 			return SizeType( index ) < m_cStr ? &m_pStr[ index ] : 0;
@@ -7071,6 +7177,12 @@ namespace ax
 			bool replaceTo( TMutStr< Allocator > &dst, Str searchFor, Str replaceWith ) const
 			{
 				return view().replaceTo( dst, searchFor, replaceWith );
+			}
+
+			/// \brief Calculate the murmur3 hash of this string
+			inline unsigned int murmur3() const
+			{
+				return view().murmur3();
 			}
 
 			/// \brief Retrieve a pointer within the string from an index
