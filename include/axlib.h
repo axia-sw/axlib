@@ -76,19 +76,23 @@
 # endif
 
 # ifndef AXLIB_NO_CONF
-#  define   AXCONF_IMPLEMENTATION
+#  define AXCONF_IMPLEMENTATION
 #endif
 
 # ifndef AXLIB_NO_FIBER
-#  define  AXFIBER_IMPLEMENTATION
+#  define AXFIBER_IMPLEMENTATION
+# endif
+
+# ifndef AXLIB_NO_INDEXMAP
+#  define AXIM_IMPLEMENTATION
 # endif
 
 # ifndef AXLIB_NO_LOG
-#  define    AXLOG_IMPLEMENTATION
+#  define AXLOG_IMPLEMENTATION
 # endif
 
 # ifndef AXLIB_NO_MM
-#  define     AXMM_IMPLEMENTATION
+#  define AXMM_IMPLEMENTATION
 # endif
 
 # ifndef AXLIB_NO_PRINTF
@@ -96,7 +100,7 @@
 # endif
 
 # ifndef AXLIB_NO_STR
-#  define    AXSTR_IMPLEMENTATION
+#  define AXSTR_IMPLEMENTATION
 # endif
 
 # ifndef AXLIB_NO_THREAD
@@ -104,7 +108,7 @@
 # endif
 
 # ifndef AXLIB_NO_TIME
-#  define   AXTIME_IMPLEMENTATION
+#  define AXTIME_IMPLEMENTATION
 # endif
 
 #endif
