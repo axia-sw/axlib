@@ -592,6 +592,10 @@ namespace ax
 		//! \return  `const` reference to the last element.
 		//! \warning This will crash if the array is empty.
 		inline const Type &last() const { return *pointer( m_cArr - 1 ); }
+		//! \brief   Retrieve the index to the last element within the array.
+		//! \return  Index to the element, or `~SizeType(0)` if the array is
+		//!          empty.
+		inline SizeType lastIndex() const { return m_cArr != 0 ? m_cArr - 1 : ~SizeType(0); } // Yes, this could just be m_cArr - 1 and would be functionally the same, but we're specifically aware of the overflow.
 
 		//! \brief  Reference an element in the array.
 		//! \param  index zero-based index of the desired element.
@@ -1461,6 +1465,9 @@ namespace ax
 		inline       Type &last ()       { AXARR_ASSERT( isUsed() ); return *pointer( m_cArr - 1 ); }
 		//! \copydoc last()
 		inline const Type &last () const { AXARR_ASSERT( isUsed() ); return *pointer( m_cArr - 1 ); }
+		//! \brief  Retrieve the index to the last element in the array.
+		//! \return The index or `~SizeType(0)` if the array is empty.
+		inline SizeType lastIndex() const { return m_cArr != 0 ? m_cArr - 1 : ~SizeType(0); } // Yes, this could just be m_cArr - 1 and would be functionally the same, but we're specifically aware of the overflow.
 
 		//! \brief  Access the element at the given index.
 		//! \param  index Zero-based index to the element to be accessed.
