@@ -1,7 +1,7 @@
 /*
 
 	ax_platform - public domain
-	Last update: 2015-10-01 Aaron Miller
+	Last update: 2021-11-21 Aaron Miller
 
 
 	TODO
@@ -826,6 +826,8 @@
 # define AX_ARCH_64BIT              1
 #elif defined( __arm__ ) || defined( _ARM )
 # define AX_ARCH_ARM                1
+#elif defined( __mips__ )
+# define AX_ARCH_MIPS               1
 #endif
 
 #if defined( __arm__ )
@@ -838,12 +840,15 @@
 #if !defined( AX_ARCH_ARM )
 # define AX_ARCH_ARM                0
 #endif
+#if !defined( AX_ARCH_MIPS )
+# define AX_ARCH_MIPS               0
+#endif
 
 #if !defined( AX_ARCH_64BIT )
 # define AX_ARCH_64BIT              0
 #endif
 
-#if !AX_ARCH_X86 && !AX_ARCH_ARM
+#if !( AX_ARCH_X86 + AX_ARCH_ARM + AX_ARCH_MIPS )
 # error Unknown architecture
 #endif
 
@@ -859,6 +864,7 @@
 	AX_OS_ANDROID is defined to 1 when targeting android; else 0.
 	AX_OS_IOS is defined to 1 when targeting ios; else 0.
 	AX_OS_UWP is defined to 1 when targeting universal windows apps; else 0.
+	AX_OS_PS2 is defined to 1 when targeting the PlayStation 2; else 0.
 
 	You can override the OS outside of this file by defining it beforehand.
 	e.g., in your Makefile or project settings.
@@ -942,6 +948,10 @@
 #   define AX_OS_MACOSX             1
 #  endif
 # endif
+#elif defined(_MIPS_ARCH_R5900) /* No OS define for ps2toolchain; use EE */
+# ifndef AX_OS_PS2
+#  define AX_OS_PS2                 1
+# endif
 #endif
 
 #ifndef AX_OS_WINDOWS
@@ -962,8 +972,11 @@
 #ifndef AX_OS_UWP
 # define AX_OS_UWP                  0
 #endif
+#ifndef AX_OS_PS2
+# define AX_OS_PS2                  0
+#endif
 
-#if !( AX_OS_WINDOWS|AX_OS_LINUX|AX_OS_MACOSX|AX_OS_ANDROID|AX_OS_IOS )
+#if !( AX_OS_WINDOWS|AX_OS_LINUX|AX_OS_MACOSX|AX_OS_ANDROID|AX_OS_IOS|AX_OS_PS2 )
 # error Unknown OS
 #endif
 
@@ -988,8 +1001,9 @@
 
 #define AX_INTRIN_SSE               ( AX_INTRINSICS_ENABLED && AX_ARCH_X86 )
 #define AX_INTRIN_NEON              ( AX_INTRINSICS_ENABLED && AX_ARCH_ARM )
+#define AX_INTRIN_VU0               ( AX_INTRINSICS_ENABLED && AX_OS_PS2 )
 
-#define AX_INTRIN_NONE              ( !AX_INTRIN_SSE && !AX_INTRIN_NEON )
+#define AX_INTRIN_NONE              ( !AX_INTRIN_SSE && !AX_INTRIN_NEON && !AX_INTRIN_VU0 )
 
 
 /*
@@ -1320,6 +1334,9 @@
 #  define AX_HAS_TRAP               1
 # elif AX_HAS_BUILTIN( __builtin_trap ) || AX_GCC_4_3
 #  define AX_TRAP()                 __builtin_trap()
+#  define AX_HAS_TRAP               1
+# elif AX_ARCH_MIPS
+#  define AX_TRAP()                 __asm__ __volatile__("break")
 #  define AX_HAS_TRAP               1
 # else
 #  define AX_TRAP()                 do{*(volatile int*)23=0;}while(0)
