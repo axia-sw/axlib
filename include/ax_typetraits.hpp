@@ -5,7 +5,7 @@
 
 
 	DEPENDENCIES
-	
+
 	- ax_platform -- for compiler defines
 	- ax_types -- for TSizedInt
 
@@ -151,7 +151,11 @@ namespace ax
 #endif
 #ifndef AX__HAS_TRIVIAL_DESTRUCTOR_DEF
 # if AX_CXX_TYPE_TRAITS_ENABLED
-#  define AX__HAS_TRIVIAL_DESTRUCTOR_DEF( T_ ) __has_trivial_destructor( T_ )
+#  if defined(__clang_major__) && ((__clang_major__) >= 15)
+#   define AX__HAS_TRIVIAL_DESTRUCTOR_DEF( T_ ) __is_trivially_destructible( T_ )
+#  else
+#   define AX__HAS_TRIVIAL_DESTRUCTOR_DEF( T_ ) __has_trivial_destructor( T_ )
+#  endif
 # else
 #  define AX__HAS_TRIVIAL_DESTRUCTOR_DEF( T_ ) false
 # endif
